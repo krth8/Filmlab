@@ -40,14 +40,37 @@ function scopeNote() {
   const it = curItem();
   note.replaceChildren();
   if (!it) return;
+  const own = Object.keys(it.override) as Key[];
   if (S.scope === 'all') {
     const n = S.items.filter((x) => Object.keys(x.override).length).length;
-    note.append(h('span', {}, `Gjelder alle ${S.items.length}${n ? ` · ${n} har egen justering i tillegg` : ''}`));
+    note.append(h('span', {}, `Gjelder alle ${S.items.length}${n ? ` · ${n} har egen justering` : ''}`));
   } else {
-    const keys = Object.keys(it.override) as Key[];
-    note.append(h('span', { class: 'ovr-txt' }, keys.length ? keys.map((k) => LABELS[k]).join(', ') : 'Ingen egne endringer ennå'));
-    if (keys.length) note.append(h('button', { class: 'btn small', onclick: () => { it.override = {}; remember(it); changed(); build(); toast('Følger alle-innstillingene igjen'); } }, 'Tilbakestill'));
+    note.append(h('span', { class: 'ovr-txt' }, own.length ? own.map((k) => LABELS[k]).join(', ') : 'Ingen egne endringer ennå'));
   }
+  note.append(h('span', { class: 'resets' },
+    h('button', { class: 'btn small ghost', disabled: !own.length, title: 'Fjern de egne justeringene på dette bildet', onclick: () => {
+      it.override = {}; remember(it); changed(); refresh(it); build(); toast('Bildet følger alle-innstillingene igjen');
+    } }, 'Nullstill valgt'),
+    resetAllBtn()));
+}
+
+/** Two taps: the first arms the button, the second resets everything. */
+let armed = 0;
+function resetAllBtn() {
+  const b = h('button', { class: 'btn small ghost' + (armed ? ' danger' : '') }, armed ? 'Trykk igjen' : 'Nullstill alt') as HTMLButtonElement;
+  b.onclick = () => {
+    if (!armed) {
+      armed = window.setTimeout(() => { armed = 0; scopeNote(); }, 3000);
+      scopeNote();
+      return;
+    }
+    clearTimeout(armed); armed = 0;
+    S.G = clone(DEF);
+    for (const x of S.items) { x.override = {}; remember(x); }
+    changed(); refresh(); build();
+    toast('Alle justeringer er nullstilt');
+  };
+  return b;
 }
 
 export function openTab(t: Tab) { S.tab = t; build(); }

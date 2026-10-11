@@ -91,7 +91,7 @@ body:not(.has-items) .strip, body:not(.has-items) .toolbar { visibility: hidden;
 .frame .vid { position: absolute; left: 5px; bottom: 5px; font: 500 10px var(--mono); background: #000b; padding: 1px 5px; border-radius: 3px; }
 .frame .vid.t { color: var(--accent); }
 .frame .err { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--warn); font: 700 22px var(--mono); }
-.frame.add { width: 72px; height: 72px; color: var(--muted); flex-direction: column; justify-content: center; gap: 2px; font-size: 12px; border: 1px dashed var(--line); }
+.frame.add { width: 72px; height: 72px; color: var(--muted); flex-direction: column; justify-content: center; gap: 2px; font-size: 12px; background: var(--raise); }
 .frame.add span { font-size: 24px; line-height: 1; }
 
 /* panel */
@@ -102,7 +102,10 @@ body:not(.has-items) .strip, body:not(.has-items) .toolbar { visibility: hidden;
 .seg button.on { background: var(--raise); color: var(--accent); }
 .seg button.on[data-scope=item] { color: var(--ovr); }
 .scopenote { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; justify-content: space-between; min-height: 26px; }
-.ovr-txt { color: var(--ovr); }
+.ovr-txt { color: var(--ovr); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resets { display: flex; gap: 2px; flex: none; }
+.resets .btn { padding: 4px 7px; }
+.resets .btn.danger { color: var(--warn); border-color: var(--warn); }
 .tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
 .tabs button { border: 0; background: transparent; padding: 8px 9px 10px; font-size: 13px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; }
 .tabs button.on { color: var(--fg); border-color: var(--accent); }
@@ -142,7 +145,7 @@ input[type=text] { background: var(--raise); border: 1px solid var(--line); bord
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill { border: 1px solid var(--line); background: var(--raise); border-radius: 99px; padding: 6px 11px; font-size: 12px; }
 .pill.on { border-color: var(--accent); color: var(--accent); }
-.pill.add { border-style: dashed; color: var(--muted); }
+.pill.add { color: var(--muted); }
 .pillwrap { position: relative; display: inline-flex; }
 .pillwrap .x { width: 18px; height: 18px; font-size: 11px; top: -7px; right: -7px; }
 
@@ -188,7 +191,7 @@ input[type=text] { background: var(--raise); border: 1px solid var(--line); bord
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field > span { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.dest { display: flex; align-items: center; gap: 10px; background: var(--bg); border: 1px dashed #4a433b; border-radius: 8px; padding: 10px; }
+.dest { display: flex; align-items: center; gap: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
 .dest code { flex: 1; font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dest code.warn, .fail { color: var(--warn); font-size: 13px; }
 .summary { font-size: 12px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 10px; line-height: 1.6; }
@@ -234,6 +237,7 @@ input[type=text] { background: var(--raise); border: 1px solid var(--line); bord
   .seg button { padding: 6px; }
   .scopenote { min-height: 0; font-size: 11px; }
   .scopenote:empty { display: none; }
+  .scopenote > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .body { padding: 10px 16px 16px; gap: 14px; }
   .looks.strip-row > * { width: 78px; }
   #curve { width: min(100%, 32vh); margin: 0 auto; }
