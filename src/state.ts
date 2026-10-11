@@ -89,7 +89,7 @@ export async function restore() {
   ]);
   if (g) S.G = { ...clone(DEF), ...g };
   if (edits) S.edits = edits;
-  if (looks) S.looks = looks;
+  if (looks) S.looks = looks.map((l) => ({ ...l, params: { ...clone(DEF), ...l.params } }));
   if (luts) S.luts = luts;
   if (ex) S.exportSettings = { ...DEFAULT_EXPORT, ...ex };
 }

@@ -161,7 +161,7 @@ void main(){
 export const FS_FINISH = COMMON + `
 uniform sampler2D u_a, u_blur, u_bloom, u_hal;
 uniform int u_blurOn, u_blurMode;
-uniform float u_bloomK, u_halK, u_vig, u_vigIn, u_grain, u_grainSize, u_seed, u_aspect;
+uniform float u_bloomK, u_halK, u_vig, u_vigIn, u_vigW, u_grain, u_grainSize, u_seed, u_aspect;
 float hash(vec2 p){ p = fract(p * vec2(443.897, 441.423)); p += dot(p, p.yx + 19.19); return fract((p.x + p.y) * p.x); }
 void main(){
   vec3 c = texture(u_a, v_uv).rgb;
@@ -175,7 +175,7 @@ void main(){
   if (u_halK > 0.0) { float h = luma(texture(u_hal, v_uv).rgb); c += vec3(1.0, 0.27, 0.11) * h * u_halK; }
   if (u_vig != 0.0) {
     vec2 n = (v_uv - 0.5) * 2.0;
-    float f = clamp((length(n) / 1.4142 - u_vigIn) / (1.05 - u_vigIn), 0.0, 1.0);
+    float f = clamp((length(n) / 1.4142 - u_vigIn) / u_vigW, 0.0, 1.0);
     f = f * f * (3.0 - 2.0 * f);
     if (u_vig > 0.0) c *= 1.0 - u_vig * f; else c += (1.0 - c) * (-u_vig) * f;
   }

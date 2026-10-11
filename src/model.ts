@@ -8,7 +8,7 @@ export interface Params {
   exposure: number; contrast: number; highlights: number; shadows: number; whites: number; blacks: number;
   temp: number; tint: number; saturation: number; vibrance: number; fade: number;
   curves: Curves; hsl: HslBand[];
-  vignette: number; vigSize: number; grain: number; grainSize: number;
+  vignette: number; vigSize: number; vigFeather: number; grain: number; grainSize: number;
   blur: number; blurMode: BlurMode; bloom: number; bloomThr: number; bloomRadius: number; halation: number;
   filter: FilterSel;
   lut: { id: string | null; k: number };
@@ -22,7 +22,7 @@ export const DEF: Params = {
   temp: 0, tint: 0, saturation: 0, vibrance: 0, fade: 0,
   curves: { rgb: LIN, r: LIN, g: LIN, b: LIN },
   hsl: Array.from({ length: 8 }, () => ({ h: 0, s: 0, l: 0 })),
-  vignette: 0, vigSize: 50, grain: 0, grainSize: 1.4,
+  vignette: 0, vigSize: 50, vigFeather: 50, grain: 0, grainSize: 1.4,
   blur: 0, blurMode: 'tilt', bloom: 0, bloomThr: 72, bloomRadius: 50, halation: 0,
   filter: { id: 'none', k: 100, v: null },
   lut: { id: null, k: 100 },
@@ -33,14 +33,14 @@ export const DEF: Params = {
 export const NUM: Partial<Record<Key, [number, number]>> = {
   exposure: [-3, 3], contrast: [-100, 100], highlights: [-100, 100], shadows: [-100, 100], whites: [-100, 100], blacks: [-100, 100],
   temp: [-100, 100], tint: [-100, 100], saturation: [-100, 100], vibrance: [-100, 100], fade: [0, 100],
-  vignette: [-100, 100], vigSize: [0, 100], grain: [0, 100], grainSize: [1, 4],
+  vignette: [-100, 100], vigSize: [0, 100], vigFeather: [0, 100], grain: [0, 100], grainSize: [1, 4],
   blur: [0, 100], bloom: [0, 100], bloomThr: [30, 95], bloomRadius: [0, 100], halation: [0, 100],
 };
 
 export const LABELS: Record<Key, string> = {
   exposure: 'Eksponering', contrast: 'Kontrast', highlights: 'Høylys', shadows: 'Skygger', whites: 'Hvitt', blacks: 'Svart',
   temp: 'Temperatur', tint: 'Tint', saturation: 'Metning', vibrance: 'Vibrance', fade: 'Fade', curves: 'Kurver', hsl: 'Selektiv farge',
-  vignette: 'Vignett', vigSize: 'Vignett-størrelse', grain: 'Korn', grainSize: 'Kornstørrelse', blur: 'Blur', blurMode: 'Blur-type',
+  vignette: 'Vignett', vigSize: 'Vignett-størrelse', vigFeather: 'Vignett-mykhet', grain: 'Korn', grainSize: 'Kornstørrelse', blur: 'Blur', blurMode: 'Blur-type',
   bloom: 'Bloom', bloomThr: 'Bloom-terskel', bloomRadius: 'Bloom-radius', halation: 'Halation', filter: 'Look', lut: 'LUT',
 };
 

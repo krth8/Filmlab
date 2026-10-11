@@ -303,6 +303,8 @@ export class Renderer {
     this.f(pr, 'u_halK', (P.halation / 100) * 1.6);
     this.f(pr, 'u_vig', P.vignette / 100);
     this.f(pr, 'u_vigIn', 0.78 - (P.vigSize / 100) * 0.6);
+    // Width of the fall-off: 0 = hard edge, 100 = very gradual. 50 matches the original look.
+    this.f(pr, 'u_vigW', 0.06 + ((P.vigFeather ?? 50) / 100) * 1.02);
     this.f(pr, 'u_grain', (P.grain / 100) * 0.16);
     this.f(pr, 'u_grainSize', P.grainSize * Math.max(1, W / 1400));
     this.f(pr, 'u_seed', (opts.seed ?? 0) % 997);

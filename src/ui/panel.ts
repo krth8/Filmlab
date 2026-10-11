@@ -428,6 +428,7 @@ function pFx() {
   const v = sec('Vignett');
   slider(v, { key: 'vignette', label: 'Mengde', min: -100, max: 100 });
   slider(v, { key: 'vigSize', label: 'Størrelse', min: 0, max: 100 });
+  slider(v, { key: 'vigFeather', label: 'Mykhet', min: 0, max: 100 });
   const g = sec('Korn');
   slider(g, { key: 'grain', label: 'Mengde', min: 0, max: 100 });
   slider(g, { key: 'grainSize', label: 'Størrelse', min: 1, max: 4, step: 0.1, unit: '×' });
