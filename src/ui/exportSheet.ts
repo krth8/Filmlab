@@ -1,7 +1,7 @@
 import { folderDest, memoryDest, outName, runExport, type Dest, type ImgFormat, type ExportResult } from '../exporter';
-import { canPickDir } from '../media';
+import { canPickDir, trimPreviews } from '../media';
 import { isTrimmed } from '../model';
-import { S, lutById, paramsFor, saveExport } from '../state';
+import { S, curItem, lutById, paramsFor, saveExport } from '../state';
 import { FMAP } from '../looks';
 import { $, fmtT, h, toast } from './dom';
 
@@ -95,6 +95,7 @@ async function run(folder: Dest | null) {
   const files: File[] = [];
   const dest = folder ?? memoryDest(files);
   ctrl = new AbortController();
+  trimPreviews(curItem());
   const bar = h('i');
   const label = h('p', { class: 'hint' }, 'Starter…');
   sheet.replaceChildren(

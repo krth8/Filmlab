@@ -71,6 +71,50 @@ export async function loadItem(it: Item): Promise<void> {
   }
 }
 
+/* ---------- full-resolution decoding (export) ---------- */
+
+/** File handles from folder imports, so a stale File can be re-read from disk. */
+const handles = new WeakMap<File, FileSystemFileHandle>();
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function viaImg(blob: Blob): Promise<ImageBitmap> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return await createImageBitmap(img);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** Decodes the full image, trying progressively more forgiving routes. Phones can fail a decode under
+ *  memory pressure, and files picked on Android can become unreadable after a while. */
+export async function decodeFull(it: Item): Promise<ImageBitmap> {
+  const fresh = async () => {
+    const h = handles.get(it.file);
+    if (!h) throw new Error('ingen mappe-tilgang');
+    const f = await h.getFile();
+    handles.set(f, h);
+    it.file = f;
+    return f;
+  };
+  const tries: (() => Promise<ImageBitmap>)[] = [
+    () => createImageBitmap(it.file),
+    async () => createImageBitmap(new Blob([await it.file.arrayBuffer()], { type: it.file.type })),
+    async () => createImageBitmap(await fresh()),
+    () => viaImg(it.file),
+  ];
+  let last: unknown;
+  for (const t of tries) {
+    try { return await t(); } catch (e) { last = e; await pause(250); }
+  }
+  const e = last as Error;
+  if (e?.name === 'NotReadableError' || e?.name === 'NotFoundError') throw new Error('Filen kan ikke leses lenger. Åpne bildene på nytt og eksporter igjen.');
+  throw new Error(`Kunne ikke dekode bildet (${e?.name || 'feil'}). Telefonen kan ha gått tom for minne – prøv en mindre eksportstørrelse.`);
+}
+
 /* Full previews (≤ 2048 px) are kept for a handful of items only. */
 const previews = new Map<Item, Promise<ImageBitmap>>();
 export function loadPreview(it: Item): Promise<ImageBitmap> {
@@ -85,12 +129,22 @@ export function loadPreview(it: Item): Promise<ImageBitmap> {
     return bm;
   })();
   previews.set(it, p);
+  p.catch(() => previews.delete(it));
   while (previews.size > 6) {
     const [k, v] = previews.entries().next().value!;
     previews.delete(k);
     v.then((b) => b.close()).catch(() => {});
   }
   return p;
+}
+
+/** Frees cached previews except the one on screen (called before a memory-heavy export). */
+export function trimPreviews(keep?: Item) {
+  for (const [k, v] of previews) {
+    if (k === keep) continue;
+    previews.delete(k);
+    v.then((b) => b.close()).catch(() => {});
+  }
 }
 
 /** Evenly spaced frames for the trim timeline. */
@@ -121,7 +175,7 @@ async function walk(dir: FileSystemDirectoryHandle, out: File[], depth = 0) {
   for await (const h of (dir as any).values() as AsyncIterable<FileSystemHandle>) {
     if (h.kind === 'file') {
       const f = await (h as FileSystemFileHandle).getFile();
-      if (kindOf(f)) out.push(f);
+      if (kindOf(f)) { out.push(f); handles.set(f, h as FileSystemFileHandle); }
     } else if (depth < 3 && !h.name.startsWith('.')) await walk(h as FileSystemDirectoryHandle, out, depth + 1);
   }
 }

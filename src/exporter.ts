@@ -2,6 +2,7 @@ import type { BufferTarget, VideoCodec } from 'mediabunny';
 import { Renderer } from './gl/renderer';
 import type { CubeLut } from './cube';
 import type { Item, Params } from './model';
+import { decodeFull } from './media';
 
 export type ImgFormat = 'jpeg' | 'webp' | 'png';
 export interface ExportSettings {
@@ -104,6 +105,7 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
     } catch (e) {
       if (job.signal.aborted) break;
       res.failed.push({ name: it.name, reason: (e as Error)?.message || String(e) });
+      await new Promise((r) => setTimeout(r, 300)); // let the browser reclaim memory before the next file
     }
     job.onProgress(i, 1);
   }
@@ -113,7 +115,7 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
 
 async function exportImage(R: Renderer, it: Item, job: ExportJob) {
   const s = job.settings;
-  let bm = await createImageBitmap(it.file);
+  let bm = await decodeFull(it);
   const [w, h] = outSize(bm.width, bm.height, s, R.maxTex);
   if (w !== bm.width) {
     const small = await createImageBitmap(bm, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' });
