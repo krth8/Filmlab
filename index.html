@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Filmlab</title>
+  <meta name="description" content="Fargekorriger bilder og video i batch, rett i nettleseren.">
+  <meta name="theme-color" content="#0f0e0d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Filmlab">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand"><i></i>Filmlab</div>
+    <div class="folder"><b id="folderName">Filmlab</b><span id="folderMeta"></span></div>
+    <div class="sp"></div>
+    <button class="btn ghost" id="openBtn">Åpne</button>
+    <button class="btn primary" id="exportBtn">Eksporter</button>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="view" aria-label="Forhåndsvisning. Hold for original, sveip for å bla." hidden></canvas>
+    <div class="chips" id="chips"></div>
+    <p class="stagemsg" id="stageMsg" hidden></p>
+    <div class="empty" id="empty">
+      <h1>Velg bilder og videoer</h1>
+      <p>Gjør fargekorrigering på hele serien samtidig, og finjuster enkeltbilder der det trengs. Alt skjer lokalt på enheten, ingenting lastes opp.</p>
+      <div class="emptybtns">
+        <button class="btn primary" id="emptyFolder">Åpne mappe…</button>
+        <button class="btn" id="emptyFiles">Velg bilder og videoer…</button>
+      </div>
+      <p class="hint">Du kan også dra filer eller en mappe hit.</p>
+    </div>
+    <div class="stagebar" id="stagebar" hidden>
+      <button class="btn small" id="playBtn">▶ Spill</button>
+      <button class="btn small ghost" id="muteBtn">Lyd av</button>
+      <span class="tc" id="stageTc"></span>
+    </div>
+  </main>
+
+  <section class="strip">
+    <div class="reel" id="reel"></div>
+  </section>
+
+  <nav class="toolbar" id="toolbar" aria-label="Verktøy">
+    <button data-tab="looks"><svg viewBox="0 0 24 24"><circle cx="9" cy="10" r="5"/><circle cx="15" cy="10" r="5"/><circle cx="12" cy="15" r="5"/></svg>Looks</button>
+    <button data-tab="light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Lys</button>
+    <button data-tab="color"><svg viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg>Farge</button>
+    <button data-tab="curves"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 21C9 21 9 3 21 3"/></svg>Kurver</button>
+    <button data-tab="fx"><svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M12 9l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg>Effekter</button>
+    <button data-tab="trim" class="vid" hidden><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 7.5L20 18M8.5 16.5L20 6"/></svg>Trim</button>
+  </nav>
+
+  <aside class="panel" id="panel">
+    <div class="sheethead" id="sheethead"><b id="sheetTitle">Looks</b><button class="btn small" id="sheetDone">Ferdig</button></div>
+    <div class="scope">
+      <div class="seg" role="group" aria-label="Hva endringene gjelder">
+        <button data-scope="all" class="on" id="scopeAll">Alle bilder</button>
+        <button data-scope="item" id="scopeItem">Bare dette</button>
+      </div>
+      <div class="scopenote" id="scopeNote"></div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="looks" class="on">Looks</button>
+      <button data-tab="light">Lys</button>
+      <button data-tab="color">Farge</button>
+      <button data-tab="curves">Kurver</button>
+      <button data-tab="fx">Effekter</button>
+      <button data-tab="trim" class="vid" hidden>Trim</button>
+    </nav>
+    <div class="body" id="body"></div>
+  </aside>
+</div>
+
+<div class="menu" id="openMenu" hidden></div>
+<div class="scrim" id="exportScrim" hidden><div class="sheet" id="exportSheet" role="dialog" aria-label="Eksporter"></div></div>
+<div class="dropzone" aria-hidden="true">Slipp for å legge til</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
