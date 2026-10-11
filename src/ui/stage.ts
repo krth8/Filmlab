@@ -25,8 +25,9 @@ function displaySize(it: Item): [number, number] {
   view.style.width = cw + 'px';
   view.style.height = ch + 'px';
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  let pw = cw * dpr, ph = ch * dpr;
-  const cap = Math.min(1, 2048 / Math.max(pw, ph), it.width / pw);
+  // When zoomed in, render more pixels so the enlarged view stays sharp (bounded by the source).
+  let pw = cw * dpr * renderZ, ph = ch * dpr * renderZ;
+  const cap = Math.min(1, (renderZ > 1 ? 4096 : 2048) / Math.max(pw, ph), it.width / pw);
   pw *= cap; ph *= cap;
   return [pw, ph];
 }
@@ -193,33 +194,107 @@ async function sampleImage(e: PointerEvent): Promise<[number, number, number] | 
 }
 
 const before = (v: boolean) => { if (S.showBefore === v) return; S.showBefore = v; draw(); };
+
+/* ---------- zoom & pan ---------- */
+let z = 1, tx = 0, ty = 0, renderZ = 1, zoomTimer = 0;
+const MAX_Z = 8;
+
+function applyZoom() {
+  const r = stage.getBoundingClientRect();
+  const w = view.offsetWidth * z, hh = view.offsetHeight * z;
+  const limX = Math.max(0, (w - r.width) / 2 + 24), limY = Math.max(0, (hh - r.height) / 2 + 24);
+  if (z <= 1) { z = 1; tx = ty = 0; }
+  tx = Math.max(-limX, Math.min(limX, tx));
+  ty = Math.max(-limY, Math.min(limY, ty));
+  view.style.transform = z === 1 ? '' : `translate(${tx}px, ${ty}px) scale(${z})`;
+  stage.classList.toggle('zoomed', z > 1);
+  clearTimeout(zoomTimer);
+  zoomTimer = window.setTimeout(() => {
+    const want = z === 1 ? 1 : Math.min(z, 4);
+    if (Math.abs(want - renderZ) > 0.15) { renderZ = want; draw(); }
+  }, 160);
+}
+export function resetZoom() { z = 1; tx = ty = 0; applyZoom(); }
+
+/** Zoom to `nz` keeping the stage point (clientX, clientY) fixed under the finger/cursor. */
+function zoomAt(nz: number, cx: number, cy: number) {
+  const r = stage.getBoundingClientRect();
+  const mx = cx - (r.left + r.width / 2), my = cy - (r.top + r.height / 2);
+  const ux = (mx - tx) / z, uy = (my - ty) / z;
+  z = Math.max(1, Math.min(MAX_Z, nz));
+  tx = mx - z * ux; ty = my - z * uy;
+  applyZoom();
+}
+
 {
-  let x0: number | null = null, y0 = 0, hold = 0;
-  view.addEventListener('pointerdown', async (e) => {
+  const pts = new Map<number, { x: number; y: number }>();
+  let x0 = 0, y0 = 0, lx = 0, ly = 0, moved = false, hold = 0, lastTap = 0, pinching = false;
+  let pDist = 0, pMid = { x: 0, y: 0 };
+  const two = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }; };
+
+  stage.addEventListener('pointerdown', async (e) => {
+    if ((e.target as Element).closest('button, .empty')) return;
+    const it = curItem();
+    if (!it || it.status !== 'ready') return;
     if (picker) {
+      if (e.target !== view) return;
       const fn = picker;
       pick(null);
       const rgb = await sampleImage(e);
       if (rgb) fn(rgb);
       return;
     }
-    x0 = e.clientX; y0 = e.clientY;
-    view.setPointerCapture(e.pointerId);
-    hold = window.setTimeout(() => before(true), 180);
+    stage.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 1) {
+      x0 = lx = e.clientX; y0 = ly = e.clientY; moved = false;
+      if (e.target === view) hold = window.setTimeout(() => { if (!moved) before(true); }, 220);
+    } else if (pts.size === 2) {
+      clearTimeout(hold); before(false);
+      pinching = true; moved = true;
+      ({ d: pDist, m: pMid } = two());
+    }
   });
-  view.addEventListener('pointermove', (e) => {
-    if (x0 != null && Math.hypot(e.clientX - x0, e.clientY - y0) > 12) clearTimeout(hold);
+  stage.addEventListener('pointermove', (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinching && pts.size >= 2) {
+      const { d, m } = two();
+      tx += m.x - pMid.x; ty += m.y - pMid.y;          // two-finger pan
+      zoomAt(z * (d / Math.max(1, pDist)), m.x, m.y);    // pinch around the midpoint
+      pDist = d; pMid = m;
+      return;
+    }
+    if (Math.hypot(e.clientX - x0, e.clientY - y0) > 10) { moved = true; clearTimeout(hold); }
+    if (moved && z > 1) { tx += e.clientX - lx; ty += e.clientY - ly; applyZoom(); }
+    lx = e.clientX; ly = e.clientY;
   });
   const end = (e: PointerEvent) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId);
     clearTimeout(hold);
-    if (x0 == null) return;
-    const dx = e.clientX - x0;
-    x0 = null;
-    if (S.showBefore) return before(false);
-    if (Math.abs(dx) > 50) select(S.cur + (dx < 0 ? 1 : -1));
+    if (pinching) {
+      if (pts.size < 2) pinching = false;
+      if (pts.size === 1) { const p = [...pts.values()][0]; lx = p.x; ly = p.y; }
+      if (z < 1.05) resetZoom();
+      return;
+    }
+    if (pts.size) return;
+    if (S.showBefore) { before(false); return; }
+    const dx = e.clientX - x0, dy = e.clientY - y0;
+    if (!moved) {
+      const now = Date.now();
+      if (now - lastTap < 300) { if (z > 1) resetZoom(); else zoomAt(2.5, e.clientX, e.clientY); lastTap = 0; }
+      else lastTap = now;
+    } else if (z === 1 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) select(S.cur + (dx < 0 ? 1 : -1));
   };
-  view.addEventListener('pointerup', end);
-  view.addEventListener('pointercancel', end);
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+  stage.addEventListener('wheel', (e) => {
+    if (!curItem() || curItem()!.status !== 'ready') return;
+    e.preventDefault();
+    zoomAt(z * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002)), e.clientX, e.clientY);
+  }, { passive: false });
   view.addEventListener('contextmenu', (e) => e.preventDefault());
   document.addEventListener('keydown', (e) => {
     if ((e.target as Element).matches('input,select,textarea')) return;
@@ -231,9 +306,16 @@ const before = (v: boolean) => { if (S.showBefore === v) return; S.showBefore = 
   document.addEventListener('keyup', (e) => { if (e.key === 'b' || e.key === 'B') before(false); });
 }
 
+/* ---------- previous / next ---------- */
+const prevBtn = $<HTMLButtonElement>('#prevBtn'), nextBtn = $<HTMLButtonElement>('#nextBtn');
+prevBtn.onclick = () => select(S.cur - 1);
+nextBtn.onclick = () => select(S.cur + 1);
+
 /* ---------- wiring ---------- */
 function onSelect() {
   const it = curItem();
+  resetZoom();
+  prevBtn.hidden = nextBtn.hidden = S.items.length < 2;
   bar.hidden = !it || it.kind !== 'video';
   pick(null);
   if (!it) { dropVideo(); draw(); return; }

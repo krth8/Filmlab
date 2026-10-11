@@ -55,14 +55,18 @@ body:not(.has-items) #exportBtn { display: none; }
 .menu .danger { color: var(--warn); }
 
 /* stage */
-.stage { grid-area: stage; position: relative; background: var(--stage); border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; min-height: 0;
+.stage { grid-area: stage; position: relative; touch-action: none; background: var(--stage); border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; min-height: 0;
   background-image: radial-gradient(circle at 50% 50%, #16130f 0, var(--stage) 70%); }
-#view { display: block; box-shadow: 0 10px 40px #0008; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#view { display: block; transform-origin: 50% 50%; will-change: transform; box-shadow: 0 10px 40px #0008; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .stage.picking #view { cursor: crosshair; }
 .stage.picking::after { content: "Trykk i bildet"; position: absolute; top: 12px; right: 12px; font: 11px var(--mono); color: var(--accent); background: #000a; padding: 3px 8px; border-radius: 99px; }
 .chips { position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; pointer-events: none; }
 .chip { font-size: 11px; font-family: var(--mono); padding: 3px 8px; border-radius: 99px; background: #000a; border: 1px solid var(--line); letter-spacing: .04em; }
 .chip.o { color: var(--ovr); border-color: #24525c; }
+.navbtn { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 40px; height: 64px; border: 0; border-radius: 10px; background: #0009; color: var(--fg); font-size: 30px; line-height: 1; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.navbtn:active { background: #000c; color: var(--accent); }
+.navbtn.prev { left: 8px; } .navbtn.next { right: 8px; }
+.stage.zoomed .chips::after { content: "Dobbelttrykk for å tilbakestille"; font: 11px var(--mono); color: var(--muted); align-self: center; }
 .stagemsg { position: absolute; margin: 0; padding: 16px; max-width: 420px; text-align: center; color: var(--muted); }
 .stagebar { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; gap: 8px; align-items: center; }
 .tc { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -77,19 +81,17 @@ body.dragging .dropzone { display: flex; position: fixed; inset: 12px; z-index: 
 /* filmstrip */
 .strip { grid-area: strip; min-width: 0; }
 body:not(.has-items) .strip, body:not(.has-items) .toolbar { visibility: hidden; }
-.reel { display: flex; overflow-x: auto; background: #050504; border-radius: 6px; scrollbar-width: thin; min-height: 100px; }
-.frame { flex: none; position: relative; border: 0; background: #050504; padding: 14px 5px; display: flex; align-items: center; }
-.frame::before, .frame::after { content: ""; position: absolute; left: 0; right: 0; height: 8px; background: repeating-linear-gradient(90deg, transparent 0 5px, #2a2520 5px 11px, transparent 11px 16px); background-position: 2px 0; }
-.frame::before { top: 3px; } .frame::after { bottom: 3px; }
-.frame canvas { display: block; height: 72px; width: auto; max-width: 140px; min-width: 40px; border-radius: 2px; outline: 2px solid transparent; outline-offset: 2px; background: #1a1714; }
-.frame.on canvas { outline-color: var(--accent); }
+.reel { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; min-height: 84px; align-items: center; padding: 6px 2px; }
+.frame { flex: none; position: relative; border: 0; background: none; padding: 0; display: flex; align-items: center; border-radius: 6px; }
+.frame canvas { display: block; height: 72px; width: auto; max-width: 140px; min-width: 40px; border-radius: 6px; outline: 2px solid transparent; outline-offset: 2px; background: var(--raise); opacity: .78; transition: opacity .15s; }
+.frame.on canvas { outline-color: var(--accent); opacity: 1; }
 .frame.loading canvas { animation: pulse 1.2s ease-in-out infinite; width: 108px; }
 @keyframes pulse { 50% { background: #2a2520; } }
-.frame .ov { position: absolute; right: 8px; top: 18px; width: 8px; height: 8px; border-radius: 50%; background: var(--ovr); box-shadow: 0 0 0 2px #050504; }
-.frame .vid { position: absolute; left: 9px; top: 17px; font: 500 10px var(--mono); background: #000b; padding: 1px 5px; border-radius: 3px; }
+.frame .ov { position: absolute; right: 5px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--ovr); box-shadow: 0 0 0 2px #0008; }
+.frame .vid { position: absolute; left: 5px; bottom: 5px; font: 500 10px var(--mono); background: #000b; padding: 1px 5px; border-radius: 3px; }
 .frame .vid.t { color: var(--accent); }
 .frame .err { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--warn); font: 700 22px var(--mono); }
-.frame.add { width: 104px; color: var(--muted); flex-direction: column; justify-content: center; gap: 2px; font-size: 12px; }
+.frame.add { width: 72px; height: 72px; color: var(--muted); flex-direction: column; justify-content: center; gap: 2px; font-size: 12px; border: 1px dashed var(--line); }
 .frame.add span { font-size: 24px; line-height: 1; }
 
 /* panel */
@@ -209,12 +211,12 @@ input[type=text] { background: var(--raise); border: 1px solid var(--line); bord
   .app.sheet-open .stage { border-radius: 8px; }
   .brand { font-size: 19px; }
   .folder span { display: none; }
-  .frame { padding: 12px 4px; }
-  .frame canvas { height: 48px; max-width: 90px; }
-  .frame .vid { top: 15px; left: 7px; font-size: 9px; }
-  .frame .ov { top: 15px; right: 7px; }
-  .frame.add { width: 72px; }
-  .reel { min-height: 72px; }
+  .frame canvas { height: 52px; max-width: 92px; }
+  .frame .vid { font-size: 9px; }
+  .frame.add { width: 52px; height: 52px; font-size: 10px; }
+  .reel { min-height: 62px; padding: 4px 2px; }
+  .navbtn { width: 34px; height: 54px; font-size: 26px; }
+  .navbtn.prev { left: 4px; } .navbtn.next { right: 4px; }
   .stagebar { left: 8px; right: 8px; bottom: 8px; }
   .toolbar { grid-area: tools; display: flex; gap: 2px; }
   .toolbar button { flex: 1; border: 0; background: none; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 6px 0; min-width: 0; }
