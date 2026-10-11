@@ -162,7 +162,8 @@ export const FS_FINISH = COMMON + `
 uniform sampler2D u_a, u_blur, u_bloom, u_hal;
 uniform int u_blurOn, u_blurMode;
 uniform float u_bloomK, u_halK, u_vig, u_vigIn, u_vigW, u_grain, u_grainSize, u_seed, u_aspect;
-float hash(vec2 p){ p = fract(p * vec2(443.897, 441.423)); p += dot(p, p.yx + 19.19); return fract((p.x + p.y) * p.x); }
+// 3D hash: the frame seed is its own dimension, so every video frame gets an independent grain pattern.
+float hash(vec3 p){ p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
 void main(){
   vec3 c = texture(u_a, v_uv).rgb;
   if (u_blurOn == 1) {
@@ -180,8 +181,8 @@ void main(){
     if (u_vig > 0.0) c *= 1.0 - u_vig * f; else c += (1.0 - c) * (-u_vig) * f;
   }
   if (u_grain > 0.0) {
-    vec2 cell = floor(gl_FragCoord.xy / u_grainSize) + u_seed;
-    float n = (hash(cell) + hash(cell + 17.31) + hash(cell + 41.7) - 1.5) * 1.2;
+    vec3 cell = vec3(floor(gl_FragCoord.xy / u_grainSize), u_seed);
+    float n = (hash(cell) + hash(cell + vec3(17.31, 5.17, 3.1)) + hash(cell + vec3(41.7, 23.9, 7.3)) - 1.5) * 1.2;
     float lm = luma(c), w = 0.35 + (1.0 - abs(lm - 0.5) * 2.0) * 0.65;
     c += n * u_grain * w;
   }
