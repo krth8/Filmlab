@@ -161,38 +161,54 @@ function lookTile(name: string, P: () => Params, on: boolean, click: () => void,
   return h('div', { class: 'lookwrap' }, b, h('button', { class: 'x', title: 'Slett', onclick: remove }, '×'));
 }
 
+/** ‹ Name › control: cycles through options in place instead of opening a native picker. */
+function cycler(opts: { id: string; name: string; group?: string }[], value: string, pickFn: (id: string) => void, fallback = '') {
+  const i = opts.findIndex((o) => o.id === value);
+  const go = (d: number) => pickFn(opts[(((i < 0 ? (d > 0 ? -1 : 0) : i) + d) % opts.length + opts.length) % opts.length].id);
+  const cur = opts[i];
+  const mid = h('div', { class: 'cyc-mid' },
+    h('b', {}, cur ? cur.name : fallback),
+    h('small', {}, cur ? `${cur.group ? cur.group + ' · ' : ''}${i + 1} / ${opts.length}` : `${opts.length} valg`));
+  const el = h('div', { class: 'cycler' },
+    h('button', { class: 'cyc-btn', 'aria-label': 'Forrige', onclick: () => go(-1) }, '‹'), mid,
+    h('button', { class: 'cyc-btn', 'aria-label': 'Neste', onclick: () => go(1) }, '›'));
+  // Swipe sideways on the name to cycle too.
+  let x0: number | null = null;
+  mid.onpointerdown = (e) => { x0 = e.clientX; mid.setPointerCapture(e.pointerId); };
+  mid.onpointerup = (e) => { if (x0 != null && Math.abs(e.clientX - x0) > 30) go(e.clientX < x0 ? 1 : -1); x0 = null; };
+  return el;
+}
+
+let filterDetails = false;
 function pLooks() {
   const f = getV('filter');
-  const s = sec('Filter');
-  const sel = h('select', { id: 'filterSel', 'aria-label': 'Filter' }) as HTMLSelectElement;
-  let og: HTMLOptGroupElement | null = null;
-  for (const x of FILTERS) {
-    const opt = h('option', { value: x.id }, x.name);
-    if (x.g) { if (!og || og.label !== x.g) { og = h('optgroup', { label: x.g }); sel.append(og); } og.append(opt); } else sel.append(opt);
-  }
-  sel.value = f.id;
-  sel.onchange = () => { setV('filter', { id: sel.value, k: 100, v: null }); build(); };
-  s.append(sel);
+  const s = sec('Look');
+  const pickFilter = (id: string) => { setV('filter', { id, k: 100, v: null }); build(); };
+  s.append(cycler(FILTERS.map((x) => ({ id: x.id, name: x.name, group: x.g })), f.id, pickFilter));
+  const g = h('div', { class: 'looks strip-row' });
+  for (const x of FILTERS) g.append(lookTile(x.name, () => ({ ...baseParams(), filter: { id: x.id, k: 100, v: null } }), x.id === f.id, () => pickFilter(x.id)));
+  s.append(g);
+  requestAnimationFrame(() => g.querySelector('.look.on')?.scrollIntoView({ block: 'nearest', inline: 'center' }));
   const fd = FMAP[f.id];
   if (fd?.v) {
     slider(s, { key: 'filter', label: 'Styrke', min: 0, max: 100, get: () => getV('filter').k, set: (v) => setV('filter', { ...getV('filter'), k: v }) });
-    for (const [k, lab, mn, mx] of FSLIDERS) {
-      if (fd.mono && (k === 'sat' || k === 'warm')) continue;
-      slider(s, {
-        key: 'filter', label: lab, min: mn, max: mx, unit: k === 'sh' || k === 'hh' ? '°' : '',
-        get: () => { const fv = getV('filter'); return fv.v?.[k] ?? fd.v![k]; },
-        set: (v) => { const fv = clone(getV('filter')); fv.v = { ...(fv.v || {}), [k]: v }; setV('filter', fv); },
-      });
+    s.append(h('button', { class: 'disclose' + (filterDetails ? ' open' : ''), onclick: () => { filterDetails = !filterDetails; build(); } }, filterDetails ? 'Skjul detaljer' : 'Finjuster look'));
+    if (filterDetails) {
+      for (const [k, lab, mn, mx] of FSLIDERS) {
+        if (fd.mono && (k === 'sat' || k === 'warm')) continue;
+        slider(s, {
+          key: 'filter', label: lab, min: mn, max: mx, unit: k === 'sh' || k === 'hh' ? '°' : '',
+          get: () => { const fv = getV('filter'); return fv.v?.[k] ?? fd.v![k]; },
+          set: (v) => { const fv = clone(getV('filter')); fv.v = { ...(fv.v || {}), [k]: v }; setV('filter', fv); },
+        });
+      }
     }
   }
-  const g = h('div', { class: 'looks' });
-  for (const x of FILTERS) g.append(lookTile(x.name, () => ({ ...baseParams(), filter: { id: x.id, k: 100, v: null } }), x.id === f.id, () => { setV('filter', { id: x.id, k: 100, v: null }); build(); }));
-  sec('Looks', 'trykk for å bruke').append(g);
 
   // Saved looks
   const m = sec('Mine looks', 'hele oppsettet');
   if (S.looks.length) {
-    const mg = h('div', { class: 'looks' });
+    const mg = h('div', { class: 'looks strip-row' });
     for (const L of S.looks) mg.append(lookTile(L.name, () => L.params, false, () => { applyLook(clone(L.params)); toast(`«${L.name}» brukt`); }, () => { S.looks = S.looks.filter((x) => x !== L); saveLooks(); build(); }));
     m.append(mg);
   }
@@ -338,9 +354,9 @@ const CH_COL = { rgb: '#ece5d9', r: '#ff6a5a', g: '#6fd27c', b: '#6aa6ff' };
 
 function pCurves() {
   const s = sec('RGB-kurver');
-  const sel = h('select', { id: 'curvePreset', 'aria-label': 'Kurve-preset' }, h('option', { value: '' }, 'Kurve-preset…'), ...Object.keys(CURVES).map((n) => h('option', {}, n))) as HTMLSelectElement;
-  sel.onchange = () => { if (sel.value) { setV('curves', clone(CURVES[sel.value])); drawCurve(); } };
-  s.append(sel);
+  const cur = JSON.stringify(getV('curves'));
+  const match = Object.keys(CURVES).find((n) => JSON.stringify(CURVES[n]) === cur) ?? '';
+  s.append(cycler(Object.keys(CURVES).map((n) => ({ id: n, name: n })), match, (n) => { setV('curves', clone(CURVES[n])); build(); }, 'Egen kurve'));
   const ch = h('div', { class: 'chans' });
   for (const c of ['rgb', 'r', 'g', 'b'] as const) {
     ch.append(h('button', { 'data-c': c, class: c === curveCh ? 'on' : '', onclick: (e: Event) => {

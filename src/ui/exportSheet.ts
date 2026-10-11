@@ -13,12 +13,18 @@ let ctrl: AbortController | null = null;
 const close = () => { if (!ctrl) scrim.hidden = true; };
 scrim.addEventListener('click', (e) => { if (e.target === scrim) close(); });
 
-function field(label: string, ...kids: Node[]) { return h('label', { class: 'field' }, h('span', {}, label), ...kids); }
+function field(label: string, ...kids: Node[]) { return h('div', { class: 'field' }, h('span', {}, label), ...kids); }
+/** A row of pills instead of a native <select> (Android shows those full-screen). */
 function select(id: string, opts: [string, string][], value: string, onchange: (v: string) => void) {
-  const s = h('select', { id }, ...opts.map(([v, t]) => h('option', { value: v }, t))) as HTMLSelectElement;
-  s.value = value;
-  s.onchange = () => onchange(s.value);
-  return s;
+  const row = h('div', { class: 'segpills', id, role: 'radiogroup' });
+  for (const [v, t] of opts) {
+    const b = h('button', { class: 'pill' + (v === value ? ' on' : ''), role: 'radio', 'aria-checked': String(v === value), onclick: () => {
+      row.querySelectorAll('button').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); });
+      onchange(v);
+    } }, t);
+    row.append(b);
+  }
+  return row;
 }
 
 export function openExport() {
@@ -69,9 +75,9 @@ function form() {
     h('div', { class: 'field' }, h('span', {}, 'Lagre til'), dest),
     h('div', { class: 'two' },
       field('Bilder', select('exFmt', [['jpeg', 'JPEG'], ['webp', 'WebP'], ['png', 'PNG']], es.format, (v) => { es.format = v as ImgFormat; upd(); })),
-      field('Video', select('exVid', [['avc', 'MP4 · H.264'], ['hevc', 'MP4 · HEVC'], ['av1', 'MP4 · AV1']], es.codec, (v) => { es.codec = v as typeof es.codec; upd(); }))),
+      field('Video', select('exVid', [['avc', 'H.264'], ['hevc', 'HEVC'], ['av1', 'AV1']], es.codec, (v) => { es.codec = v as typeof es.codec; upd(); }))),
     h('div', { class: 'two' },
-      field('Størrelse', select('exSize', [['0', 'Original'], ['4096', '4096 px lang side'], ['2048', '2048 px lang side'], ['1080', '1080 px lang side']], String(es.size), (v) => { es.size = +v; upd(); })),
+      field('Lang side (px)', select('exSize', [['0', 'Original'], ['4096', '4096'], ['2048', '2048'], ['1080', '1080']], String(es.size), (v) => { es.size = +v; upd(); })),
       h('div', { class: 'field' }, h('span', {}, 'Kvalitet ', qv), q)),
     field('Filnavn ({navn} = originalnavnet)', name),
     summary,
