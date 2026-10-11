@@ -2,6 +2,8 @@ import './styles.css';
 import { clone, type Item } from './model';
 import { canPickDir, fileKey, fromDrop, kindOf, loadItem, pickDirectory, pickFiles, type Picked } from './media';
 import { S, emit, on, restore, select } from './state';
+import * as store from './store';
+import { keepFiles, loadSession, lockedDirs, pruneFiles, reopen, saveSession, unlock, type Session } from './session';
 import { $, h, isPhone, toast } from './ui/dom';
 import { buildReel, refresh, setAddHandler } from './ui/reel';
 import { build } from './ui/panel';
@@ -10,18 +12,41 @@ import { openExport } from './ui/exportSheet';
 
 let nextId = 1;
 
+function makeItem(key: string, name: string, kind: Item['kind'], file: File): Item {
+  const saved = S.edits[key];
+  return {
+    id: nextId++, key, name, file, kind,
+    override: saved ? clone(saved.override) : {}, trim: saved?.trim ? { ...saved.trim } : null,
+    duration: 0, width: 0, height: 0, preview: null, thumb: null, lum: 0, status: 'loading',
+  };
+}
+
+/** Reads thumbnails a few at a time (the current item first), then keeps copies for the next session. */
+async function loadAll(items: Item[]) {
+  const queue = [...items];
+  const cur = S.items[S.cur];
+  if (queue.includes(cur)) queue.unshift(...queue.splice(queue.indexOf(cur), 1));
+  const worker = async () => {
+    for (let it = queue.shift(); it; it = queue.shift()) {
+      if (it.status === 'loading') await loadItem(it);
+      refresh(it);
+      if (it === S.items[S.cur]) emit('items');
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  emit('items');
+  updateTop();
+  keepFiles(items, () => toast('Ikke nok lagringsplass til å huske alle filene til neste gang'));
+}
+
 async function addFiles(p: Picked) {
   const known = new Set(S.items.map((i) => i.key));
   const fresh: Item[] = [];
   for (const f of p.files) {
     const kind = kindOf(f), key = fileKey(f);
     if (!kind || known.has(key)) continue;
-    const saved = S.edits[key];
-    fresh.push({
-      id: nextId++, key, name: f.name, file: f, kind,
-      override: saved ? clone(saved.override) : {}, trim: saved?.trim ? { ...saved.trim } : null,
-      duration: 0, width: 0, height: 0, preview: null, thumb: null, lum: 0, status: 'loading',
-    });
+    known.add(key);
+    fresh.push(makeItem(key, f.name, kind, f));
   }
   if (!fresh.length) { toast('Fant ingen nye bilder eller videoer'); return; }
   const first = !S.items.length;
@@ -31,24 +56,32 @@ async function addFiles(p: Picked) {
   updateTop();
   buildReel();
   select(first ? 0 : S.items.length - fresh.length);
+  saveSession();
   toast(`La til ${fresh.length} ${fresh.length === 1 ? 'fil' : 'filer'}`);
-
-  // Read thumbnails a few at a time; the current item first.
-  const queue = [...fresh];
-  const cur = S.items[S.cur];
-  if (queue.includes(cur)) queue.unshift(...queue.splice(queue.indexOf(cur), 1));
-  const worker = async () => {
-    for (let it = queue.shift(); it; it = queue.shift()) {
-      await loadItem(it);
-      refresh(it);
-      if (it === S.items[S.cur]) emit('items');
-    }
-  };
-  await Promise.all([worker(), worker(), worker()]);
-  emit('items');
-  updateTop();
+  await loadAll(fresh);
   const bad = fresh.filter((i) => i.status === 'error').length;
   if (bad) toast(`${bad} ${bad === 1 ? 'fil' : 'filer'} kunne ikke leses`);
+}
+
+/** Rebuilds the previous session: same files, same selection, same tool. */
+async function resume(sess: Session) {
+  const files = await reopen(sess);
+  const items = files.map((x) => {
+    const it = makeItem(x.key, x.name, x.kind, x.file ?? new File([], x.name));
+    if (!x.file) { it.status = 'error'; it.error = 'Filen finnes ikke lenger. Åpne den på nytt.'; }
+    return it;
+  });
+  S.items = items;
+  S.folderName = sess.folderName;
+  S.importDir = sess.dirs[0] ?? null;
+  S.scope = sess.scope ?? 'all';
+  S.tab = sess.tab ?? 'looks';
+  S.cur = Math.min(Math.max(0, sess.cur), items.length - 1);
+  updateTop();
+  buildReel();
+  select(S.cur);
+  await loadAll(items);
+  pruneFiles();
 }
 
 function updateTop() {
@@ -73,6 +106,8 @@ async function openFiles() {
 }
 function clearAll() {
   S.items = [];
+  saveSession();
+  pruneFiles();
   S.cur = 0;
   S.folderName = '';
   S.importDir = null;
@@ -118,10 +153,30 @@ addEventListener('drop', async (e) => {
 
 /* ---------- boot ---------- */
 on('select', updateTop);
+for (const ev of ['select', 'ui', 'items', 'params'] as const) on(ev, saveSession);
+document.addEventListener('click', (e) => { if ((e.target as Element).closest('.seg, .tabs, .toolbar')) saveSession(); });
+// Write pending edits and the session immediately when the app is hidden or closed.
+addEventListener('pagehide', () => { saveSession(); store.flush(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { saveSession(); store.flush(); } });
+
 await restore();
 updateTop();
 build();
 draw();
+
+const sess = await loadSession();
+if (sess?.items?.length) {
+  const locked = await lockedDirs(sess);
+  if (!locked.length) await resume(sess);
+  else {
+    // Folder access has to be re-granted with a tap; offer to continue where the user left off.
+    const btn = $<HTMLButtonElement>('#resumeBtn');
+    btn.textContent = `Fortsett der du slapp (${sess.items.length} filer)`;
+    btn.hidden = false;
+    $('#emptyFolder').classList.remove('primary');
+    btn.onclick = async () => { btn.hidden = true; await unlock(locked); await resume(sess); };
+  }
+}
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});

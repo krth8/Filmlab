@@ -171,13 +171,29 @@ export const canPickDir = typeof window !== 'undefined' && 'showDirectoryPicker'
 
 export interface Picked { files: File[]; dir: FileSystemDirectoryHandle | null; name: string }
 
-async function walk(dir: FileSystemDirectoryHandle, out: File[], depth = 0) {
+/** Which picked folder a file came from, so the session can re-open it after a restart. */
+const origins = new WeakMap<File, { dir: FileSystemDirectoryHandle; path: string }>();
+export const originOf = (f: File) => origins.get(f);
+
+async function walk(dir: FileSystemDirectoryHandle, out: File[], depth = 0, root = dir, prefix = '') {
   for await (const h of (dir as any).values() as AsyncIterable<FileSystemHandle>) {
     if (h.kind === 'file') {
       const f = await (h as FileSystemFileHandle).getFile();
-      if (kindOf(f)) { out.push(f); handles.set(f, h as FileSystemFileHandle); }
-    } else if (depth < 3 && !h.name.startsWith('.')) await walk(h as FileSystemDirectoryHandle, out, depth + 1);
+      if (kindOf(f)) { out.push(f); handles.set(f, h as FileSystemFileHandle); origins.set(f, { dir: root, path: prefix + h.name }); }
+    } else if (depth < 3 && !h.name.startsWith('.')) await walk(h as FileSystemDirectoryHandle, out, depth + 1, root, prefix + h.name + '/');
   }
+}
+
+/** Re-opens a file inside a previously picked folder. */
+export async function openInDir(root: FileSystemDirectoryHandle, path: string): Promise<File> {
+  const parts = path.split('/');
+  let d = root;
+  for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p);
+  const h = await d.getFileHandle(parts[parts.length - 1]);
+  const f = await h.getFile();
+  handles.set(f, h);
+  origins.set(f, { dir: root, path });
+  return f;
 }
 
 export async function pickDirectory(): Promise<Picked | null> {
