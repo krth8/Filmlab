@@ -48,6 +48,9 @@ function form() {
       h('b', {}, `${items.length - nv.length} bilder`), ' og ', h('b', {}, `${nv.length} videoer`), ` med look «${FMAP[S.G.filter.id]?.name ?? 'Ingen'}».`, h('br'),
       `${overrides} har egen justering · ${trimmed.length} videoer er trimmet` + (nv.length ? ` (${fmtT(nv.reduce((a, x) => a + x.duration, 0), 0)} → ${fmtT(nv.reduce((a, x) => a + (x.trim ? x.trim.out - x.trim.in : x.duration), 0), 0)})` : '') + '.', h('br'),
       'Eksempel: ', h('code', {}, outName(items[0], es)),
+      ...(nv.length && es.vQuality === 'custom'
+        ? [h('br'), `Video ≈ ${Math.round((nv.reduce((a, x) => a + (x.trim ? x.trim.out - x.trim.in : x.duration), 0) * es.vBitrate) / 8)} MB totalt.`]
+        : []),
     );
     go.textContent = `Eksporter ${items.length} ${items.length === 1 ? 'fil' : 'filer'}`;
   };
@@ -74,12 +77,11 @@ function form() {
     h('h2', {}, 'Eksporter'),
     h('div', { class: 'field' }, h('span', {}, 'Lagre til'), dest),
     h('div', { class: 'two' },
-      field('Bilder', select('exFmt', [['jpeg', 'JPEG'], ['webp', 'WebP'], ['png', 'PNG']], es.format, (v) => { es.format = v as ImgFormat; upd(); })),
-      field('Video', select('exVid', [['avc', 'H.264'], ['hevc', 'HEVC'], ['av1', 'AV1']], es.codec, (v) => { es.codec = v as typeof es.codec; upd(); }))),
-    h('div', { class: 'two' },
-      field('Lang side (px)', select('exSize', [['0', 'Original'], ['4096', '4096'], ['2048', '2048'], ['1080', '1080']], String(es.size), (v) => { es.size = +v; upd(); })),
-      h('div', { class: 'field' }, h('span', {}, 'Kvalitet ', qv), q)),
+      field('Bildeformat', select('exFmt', [['jpeg', 'JPEG'], ['webp', 'WebP'], ['png', 'PNG']], es.format, (v) => { es.format = v as ImgFormat; upd(); })),
+      h('div', { class: 'field' }, h('span', {}, 'Bildekvalitet ', qv), q)),
+    field('Bilder: lang side (px)', select('exSize', [['0', 'Original'], ['4096', '4096'], ['2048', '2048'], ['1080', '1080']], String(es.size), (v) => { es.size = +v; upd(); })),
     field('Filnavn ({navn} = originalnavnet)', name),
+    advanced(upd, nv.length > 0),
     summary,
     h('div', { class: 'actions' }, h('button', { class: 'btn ghost', onclick: close }, 'Avbryt'), go),
   );
@@ -88,6 +90,34 @@ function form() {
     run(outDir ? folderDest(outDir) : null);
   };
   upd();
+}
+
+let advOpen = false;
+function advanced(upd: () => void, hasVideo: boolean) {
+  const es = S.exportSettings;
+  const rate = h('input', { type: 'range', id: 'exRate', min: 2, max: 100, step: 1, value: es.vBitrate }) as HTMLInputElement;
+  rate.value = String(es.vBitrate);
+  const rv = h('b', { class: 'mono' }, `${es.vBitrate} Mbit/s`);
+  rate.oninput = () => { es.vBitrate = +rate.value; rv.textContent = `${rate.value} Mbit/s`; upd(); };
+  const rateRow = h('div', { class: 'field' }, h('span', {}, 'Bitrate ', rv), rate);
+  rateRow.hidden = es.vQuality !== 'custom';
+  const box = h('div', { class: 'adv' },
+    !hasVideo && h('p', { class: 'hint' }, 'Innstillingene gjelder video. Det er ingen videoer i denne eksporten.'),
+    h('div', { class: 'two' },
+      field('Videokodek', select('exVid', [['avc', 'H.264'], ['hevc', 'HEVC'], ['av1', 'AV1']], es.codec, (v) => { es.codec = v as typeof es.codec; upd(); })),
+      field('Maks oppløsning', select('exVRes', [['0', 'Original'], ['2160', '4K'], ['1080', '1080p'], ['720', '720p']], String(es.vRes), (v) => { es.vRes = +v; upd(); }))),
+    field('Videokvalitet', select('exVQ', [['medium', 'Middels'], ['high', 'Høy'], ['very_high', 'Svært høy'], ['custom', 'Egen bitrate']], es.vQuality, (v) => {
+      es.vQuality = v as typeof es.vQuality; rateRow.hidden = v !== 'custom'; upd();
+    })),
+    rateRow,
+    h('div', { class: 'two' },
+      field('Bilder per sekund', select('exFps', [['0', 'Original'], ['24', '24'], ['30', '30'], ['60', '60']], String(es.fps), (v) => { es.fps = +v; upd(); })),
+      field('Lyd', select('exAudio', [['1', 'Med lyd'], ['0', 'Uten lyd']], es.audio ? '1' : '0', (v) => { es.audio = v === '1'; upd(); }))),
+  );
+  box.hidden = !advOpen;
+  const toggle = h('button', { class: 'disclose' + (advOpen ? ' open' : '') }, advOpen ? 'Skjul avansert' : 'Avansert (video)') as HTMLButtonElement;
+  toggle.onclick = () => { advOpen = !advOpen; box.hidden = !advOpen; toggle.textContent = advOpen ? 'Skjul avansert' : 'Avansert (video)'; };
+  return h('div', { class: 'field' }, toggle, box);
 }
 
 async function run(folder: Dest | null) {

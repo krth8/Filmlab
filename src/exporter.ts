@@ -8,11 +8,20 @@ export type ImgFormat = 'jpeg' | 'webp' | 'png';
 export interface ExportSettings {
   format: ImgFormat;
   quality: number;        // 50–100
-  size: number;           // long side in px, 0 = original
+  size: number;           // images: long side in px, 0 = original
   codec: VideoCodec;
+  vRes: number;           // video: short side in px (2160/1080/720), 0 = original
+  vQuality: VideoQuality;
+  vBitrate: number;       // Mbit/s, used when vQuality is 'custom'
+  fps: number;            // 0 = keep the original frame rate
+  audio: boolean;
   name: string;           // pattern, {navn} is replaced
 }
-export const DEFAULT_EXPORT: ExportSettings = { format: 'jpeg', quality: 92, size: 0, codec: 'avc', name: '{navn}_filmlab' };
+export type VideoQuality = 'medium' | 'high' | 'very_high' | 'custom';
+export const DEFAULT_EXPORT: ExportSettings = {
+  format: 'jpeg', quality: 92, size: 0, codec: 'avc', name: '{navn}_filmlab',
+  vRes: 0, vQuality: 'high', vBitrate: 20, fps: 0, audio: true,
+};
 
 const MIME: Record<ImgFormat, string> = { jpeg: 'image/jpeg', webp: 'image/webp', png: 'image/png' };
 const EXT: Record<ImgFormat, string> = { jpeg: 'jpg', webp: 'webp', png: 'png' };
@@ -25,6 +34,14 @@ export function outName(it: Item, s: ExportSettings): string {
   const base = it.name.replace(/\.[^.]+$/, '');
   const ext = it.kind === 'video' ? 'mp4' : EXT[s.format];
   return `${(s.name || '{navn}').replace(/\{navn\}/g, base)}.${ext}`;
+}
+
+/** Video output size: the short side is capped at `vRes`. Dimensions are even, as encoders require. */
+export function videoSize(w: number, h: number, s: ExportSettings, maxTex: number): [number, number] {
+  let k = s.vRes ? Math.min(1, s.vRes / Math.min(w, h)) : 1;
+  k = Math.min(k, maxTex / Math.max(w, h), Math.sqrt(MAX_PIXELS / (w * h)));
+  const ow = Math.max(2, Math.round(w * k)), oh = Math.max(2, Math.round(h * k));
+  return [ow - (ow % 2), oh - (oh % 2)];
 }
 
 export function outSize(w: number, h: number, s: ExportSettings, maxTex: number, even = false): [number, number] {
@@ -135,7 +152,7 @@ async function exportImage(R: Renderer, it: Item, job: ExportJob) {
 async function exportVideo(R: Renderer, it: Item, job: ExportJob, res: ExportResult) {
   const s = job.settings;
   const {
-    ALL_FORMATS, BlobSource, BufferTarget, Conversion, Input, Mp4OutputFormat, Output, QUALITY_HIGH, StreamTarget, getFirstEncodableVideoCodec,
+    ALL_FORMATS, BlobSource, BufferTarget, Conversion, Input, Mp4OutputFormat, Output, QUALITY_HIGH, QUALITY_MEDIUM, QUALITY_VERY_HIGH, StreamTarget, getFirstEncodableVideoCodec,
   } = await import('mediabunny');
   const input = new Input({ source: new BlobSource(it.file), formats: ALL_FORMATS });
   const name = outName(it, s);
@@ -143,7 +160,7 @@ async function exportVideo(R: Renderer, it: Item, job: ExportJob, res: ExportRes
   const target = writable ? new StreamTarget(writable as unknown as WritableStream, { chunked: true }) : new BufferTarget();
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: writable ? false : 'in-memory' }), target });
   try {
-    const [w, h] = outSize(it.width, it.height, s, R.maxTex, true);
+    const [w, h] = videoSize(it.width, it.height, s, R.maxTex);
     const order: VideoCodec[] = [s.codec, ...(['avc', 'hevc', 'vp9', 'av1'] as VideoCodec[]).filter((c) => c !== s.codec)];
     const codec = await getFirstEncodableVideoCodec(order, { width: w, height: h });
     if (!codec) throw new Error('Nettleseren kan ikke kode video i denne størrelsen');
@@ -155,7 +172,9 @@ async function exportVideo(R: Renderer, it: Item, job: ExportJob, res: ExportRes
       input, output, showWarnings: false,
       trim: it.trim ? { start: it.trim.in, end: it.trim.out } : undefined,
       video: {
-        codec, quality: QUALITY_HIGH, forceTranscode: true,
+        codec, forceTranscode: true,
+        ...(s.vQuality === 'custom' ? { bitrate: Math.round(s.vBitrate * 1e6) } : { quality: { medium: QUALITY_MEDIUM, high: QUALITY_HIGH, very_high: QUALITY_VERY_HIGH }[s.vQuality] }),
+        frameRate: s.fps || undefined,
         width: w, height: h, fit: 'fill',
         process: (sample) => {
           R.setSource(sample.toCanvasImageSource() as TexImageSource, w, h);
@@ -164,9 +183,10 @@ async function exportVideo(R: Renderer, it: Item, job: ExportJob, res: ExportRes
         },
         processedWidth: w, processedHeight: h,
       },
+      audio: s.audio ? undefined : { discard: true },
     });
     if (!conv.isValid) throw new Error('Videoen kan ikke konverteres i denne nettleseren');
-    if (conv.discardedTracks.some((d) => d.track.type === 'audio')) res.notes.push(`${it.name}: lydsporet kunne ikke tas med i denne nettleseren`);
+    if (s.audio && conv.discardedTracks.some((d) => d.track.type === 'audio' && d.reason !== 'discarded_by_user')) res.notes.push(`${it.name}: lydsporet kunne ikke tas med i denne nettleseren`);
     conv.onProgress = (p) => job.onProgress(job.items.indexOf(it), p);
     const abort = () => conv.cancel();
     job.signal.addEventListener('abort', abort);
