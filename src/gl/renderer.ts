@@ -1,14 +1,15 @@
 import * as S from './shaders';
 import { finalLUT } from '../curves';
 import { FMAP } from '../looks';
-import { wbGains, type Params } from '../model';
+import { maskParams, wbGains, type Mask, type Params } from '../model';
+import { geometry, type Corr } from '../geo';
 import type { CubeLut } from '../cube';
 
 interface Prog { p: WebGLProgram; u: Map<string, WebGLUniformLocation | null> }
 interface Target { tex: WebGLTexture; fb: WebGLFramebuffer; w: number; h: number }
 interface Src { tex: WebGLTexture; w: number; h: number; mip: boolean }
 
-export interface RenderOpts { bypass?: boolean; seed?: number; lut?: CubeLut | null }
+export interface RenderOpts { bypass?: boolean; seed?: number; lut?: CubeLut | null; masks?: Mask[]; corr?: Corr | null }
 
 const hue2rgb = (h: number): [number, number, number] => {
   h = (((h % 360) + 360) % 360) / 60;
@@ -31,9 +32,6 @@ export class Renderer {
   private lutId: string | null = null;
   private lutSize = 2;
   private dummy: WebGLTexture;
-  private A: Target | null = null;
-  private A2: Target | null = null;
-  private D: Target | null = null;
   private tmp: Record<string, Target | null> = {};
   private down: Target[] = [];
   private up: Target[] = [];
@@ -55,7 +53,7 @@ export class Renderer {
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 
-    for (const [k, fs] of Object.entries({ minch: S.FS_MINCH, local: S.FS_LOCAL, grade: S.FS_GRADE, bright: S.FS_BRIGHT, down: S.FS_DOWN, up: S.FS_UP, gauss: S.FS_GAUSS, finish: S.FS_FINISH, copy: S.FS_COPY })) {
+    for (const [k, fs] of Object.entries({ mask: S.FS_MASK, minch: S.FS_MINCH, local: S.FS_LOCAL, grade: S.FS_GRADE, bright: S.FS_BRIGHT, down: S.FS_DOWN, up: S.FS_UP, gauss: S.FS_GAUSS, finish: S.FS_FINISH, copy: S.FS_COPY })) {
       this.progs[k] = this.program(fs);
     }
     this.own = this.tex2d();
@@ -176,87 +174,36 @@ export class Renderer {
       src.mip = true;
     }
 
+    const geo = geometry(src.w, src.h, P, opts.corr).m;
     if (opts.bypass) {
       const pr = this.use('copy');
       this.bind(0, src.tex, pr, 'u_src');
+      this.gl.uniformMatrix3fv(this.loc(pr, 'u_geo'), false, geo);
       this.draw(null, W, H, pr, 1);
       return;
     }
 
-    // 1. grade
-    this.A = this.target(this.A, W, H);
-    let pr = this.use('grade');
-    this.bind(0, src.tex, pr, 'u_src');
-    this.updateCurve(P);
-    this.bind(1, this.curveTex, pr, 'u_curve');
-    const ev = Math.pow(2, P.exposure), [wr, wg, wb] = wbGains(P.temp, P.tint);
-    this.f(pr, 'u_wb', ev * wr, ev * wg, ev * wb);
-    this.f(pr, 'u_con', Math.max(0.15, 1 + P.contrast / 100));
-    this.f(pr, 'u_hi', P.highlights / 100);
-    this.f(pr, 'u_sh', P.shadows / 100);
-    this.f(pr, 'u_sat', 1 + P.saturation / 100);
-    this.f(pr, 'u_vib', P.vibrance / 100);
-    const fd = FMAP[P.filter.id] ?? FMAP.none;
-    const fOn = !!fd.v && P.filter.k > 0;
-    this.i(pr, 'u_fOn', fOn ? 1 : 0);
-    if (fd.v) {
-      const F = { ...fd.v, ...(P.filter.v || {}) };
-      this.i(pr, 'u_fMono', fd.mono ? 1 : 0);
-      this.f(pr, 'u_fk', P.filter.k / 100);
-      this.f(pr, 'u_fWarm', F.warm / 100);
-      this.f(pr, 'u_fCon', F.con / 100);
-      this.f(pr, 'u_fSat', F.sat / 100);
-      this.f(pr, 'u_fSplit', F.split / 100);
-      this.f(pr, 'u_fFade', F.fade / 100);
-      this.f(pr, 'u_fS', ...hue2rgb(F.sh));
-      this.f(pr, 'u_fH', ...hue2rgb(F.hh));
+    // 1. grade (+ presence), then each mask's own grade blended over it
+    let base = this.gradePass(P, W, H, opts, 'b', geo);
+    let mixes = 0;
+    for (const m of opts.masks ?? []) {
+      if (!m.on || !m.amount) continue;
+      const graded = this.gradePass(maskParams(P, m), W, H, opts, 'm', geo);
+      const out = this.slot('mix' + (mixes++ % 2), W, H);
+      const pm = this.use('mask');
+      this.bind(0, base.tex, pm, 'u_a');
+      this.bind(1, graded.tex, pm, 'u_b');
+      this.i(pm, 'u_type', m.type === 'linear' ? 0 : 1);
+      this.i(pm, 'u_inv', m.invert ? 1 : 0);
+      this.f(pm, 'u_p0', m.a[0], m.a[1]);
+      this.f(pm, 'u_p1', m.b[0], m.b[1]);
+      this.f(pm, 'u_feather', m.feather / 100);
+      this.f(pm, 'u_amount', m.amount / 100);
+      this.f(pm, 'u_aspect', W / H);
+      this.draw(out, W, H, pm);
+      base = out;
     }
-    const lut = opts.lut && P.lut.id === opts.lut.id ? opts.lut : null;
-    gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_3D, this.lutTex);
-    if (lut && lut.id !== this.lutId) {
-      gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA16F, lut.size, lut.size, lut.size, 0, gl.RGBA, gl.FLOAT, lut.data);
-      this.lutId = lut.id;
-      this.lutSize = lut.size;
-    }
-    this.i(pr, 'u_lut', 2);
-    this.i(pr, 'u_lutOn', lut && P.lut.k > 0 ? 1 : 0);
-    this.f(pr, 'u_lutK', P.lut.k / 100);
-    this.f(pr, 'u_lutSize', this.lutSize);
-    const hslOn = P.hsl.some((b) => b.h || b.s || b.l);
-    this.i(pr, 'u_hslOn', hslOn ? 1 : 0);
-    if (hslOn) {
-      gl.uniform3fv(this.loc(pr, 'u_hsl'), new Float32Array(P.hsl.flatMap((b) => [b.h, b.s, b.l])));
-      gl.uniform1fv(this.loc(pr, 'u_bandH'), BAND_H);
-    }
-    this.draw(this.A, W, H, pr);
-    let base = this.A;
-
-    // 2. presence: dehaze, clarity, texture
-    if (P.dehaze || P.clarity || P.texture) {
-      const long = Math.max(W, H);
-      let dark = this.dummy, cla = this.dummy, tex = this.dummy;
-      if (P.dehaze) {
-        this.D = this.target(this.D, W, H);
-        pr = this.use('minch');
-        this.bind(0, base.tex, pr, 'u_src');
-        this.draw(this.D, W, H, pr);
-        dark = this.gaussian(this.D, long * 0.02, 'dark').tex;
-      }
-      if (P.clarity) cla = this.gaussian(base, long * 0.015, 'cla').tex;
-      if (P.texture) tex = this.gaussian(base, long * 0.0025, 'tex').tex;
-      this.A2 = this.target(this.A2, W, H);
-      pr = this.use('local');
-      this.bind(0, base.tex, pr, 'u_a');
-      this.bind(1, dark, pr, 'u_dark');
-      this.bind(2, cla, pr, 'u_cla');
-      this.bind(3, tex, pr, 'u_tex');
-      this.f(pr, 'u_dehaze', P.dehaze / 100);
-      this.f(pr, 'u_clarity', P.clarity / 100);
-      this.f(pr, 'u_texture', P.texture / 100);
-      this.draw(this.A2, W, H, pr);
-      base = this.A2;
-    }
+    let pr: Prog;
 
     // 3. blur
     const blurOn = P.blur > 0;
@@ -346,6 +293,91 @@ export class Renderer {
     gl.bindTexture(gl.TEXTURE_2D, src.tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     return t2;
+  }
+
+  /** Colour grade into a target (`slot` keeps the base and mask passes apart), plus presence if used. */
+  private gradePass(P: Params, W: number, H: number, opts: RenderOpts, slot: string, geo: Float32Array): Target {
+    const gl = this.gl, src = this.src!;
+    const A = this.slot(slot + 'A', W, H);
+    let pr = this.use('grade');
+    gl.uniformMatrix3fv(this.loc(pr, 'u_geo'), false, geo);
+    this.bind(0, src.tex, pr, 'u_src');
+    this.updateCurve(P);
+    this.bind(1, this.curveTex, pr, 'u_curve');
+    const ev = Math.pow(2, P.exposure), [wr, wg, wb] = wbGains(P.temp, P.tint);
+    this.f(pr, 'u_wb', ev * wr, ev * wg, ev * wb);
+    this.f(pr, 'u_con', Math.max(0.15, 1 + P.contrast / 100));
+    this.f(pr, 'u_hi', P.highlights / 100);
+    this.f(pr, 'u_sh', P.shadows / 100);
+    this.f(pr, 'u_sat', 1 + P.saturation / 100);
+    this.f(pr, 'u_vib', P.vibrance / 100);
+    const fd = FMAP[P.filter.id] ?? FMAP.none;
+    const fOn = !!fd.v && P.filter.k > 0;
+    this.i(pr, 'u_fOn', fOn ? 1 : 0);
+    if (fd.v) {
+      const F = { ...fd.v, ...(P.filter.v || {}) };
+      this.i(pr, 'u_fMono', fd.mono ? 1 : 0);
+      this.f(pr, 'u_fk', P.filter.k / 100);
+      this.f(pr, 'u_fWarm', F.warm / 100);
+      this.f(pr, 'u_fCon', F.con / 100);
+      this.f(pr, 'u_fSat', F.sat / 100);
+      this.f(pr, 'u_fSplit', F.split / 100);
+      this.f(pr, 'u_fFade', F.fade / 100);
+      this.f(pr, 'u_fS', ...hue2rgb(F.sh));
+      this.f(pr, 'u_fH', ...hue2rgb(F.hh));
+    }
+    const lut = opts.lut && P.lut.id === opts.lut.id ? opts.lut : null;
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_3D, this.lutTex);
+    if (lut && lut.id !== this.lutId) {
+      gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA16F, lut.size, lut.size, lut.size, 0, gl.RGBA, gl.FLOAT, lut.data);
+      this.lutId = lut.id;
+      this.lutSize = lut.size;
+    }
+    this.i(pr, 'u_lut', 2);
+    this.i(pr, 'u_lutOn', lut && P.lut.k > 0 ? 1 : 0);
+    this.f(pr, 'u_lutK', P.lut.k / 100);
+    this.f(pr, 'u_lutSize', this.lutSize);
+    const hslOn = P.hsl.some((b) => b.h || b.s || b.l);
+    this.i(pr, 'u_hslOn', hslOn ? 1 : 0);
+    if (hslOn) {
+      gl.uniform3fv(this.loc(pr, 'u_hsl'), new Float32Array(P.hsl.flatMap((b) => [b.h, b.s, b.l])));
+      gl.uniform1fv(this.loc(pr, 'u_bandH'), BAND_H);
+    }
+    this.draw(A, W, H, pr);
+    let base = A;
+
+    // presence: dehaze, clarity, texture
+    if (P.dehaze || P.clarity || P.texture) {
+      const long = Math.max(W, H);
+      let dark = this.dummy, cla = this.dummy, tex = this.dummy;
+      if (P.dehaze) {
+        const D = this.slot(slot + 'D', W, H);
+        pr = this.use('minch');
+        this.bind(0, base.tex, pr, 'u_src');
+        this.draw(D, W, H, pr);
+        dark = this.gaussian(D, long * 0.02, slot + 'dark').tex;
+      }
+      if (P.clarity) cla = this.gaussian(base, long * 0.015, slot + 'cla').tex;
+      if (P.texture) tex = this.gaussian(base, long * 0.0025, slot + 'tex').tex;
+      const A2 = this.slot(slot + 'A2', W, H);
+      pr = this.use('local');
+      this.bind(0, base.tex, pr, 'u_a');
+      this.bind(1, dark, pr, 'u_dark');
+      this.bind(2, cla, pr, 'u_cla');
+      this.bind(3, tex, pr, 'u_tex');
+      this.f(pr, 'u_dehaze', P.dehaze / 100);
+      this.f(pr, 'u_clarity', P.clarity / 100);
+      this.f(pr, 'u_texture', P.texture / 100);
+      this.draw(A2, W, H, pr);
+      base = A2;
+    }
+
+    return base;
+  }
+
+  private slot(name: string, w: number, h: number): Target {
+    return (this.tmp[name] = this.target(this.tmp[name] ?? null, w, h));
   }
 
   private updateCurve(P: Params) {

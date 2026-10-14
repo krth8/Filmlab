@@ -3,6 +3,8 @@ import { Renderer } from './gl/renderer';
 import type { CubeLut } from './cube';
 import type { Item, Params } from './model';
 import { decodeFull } from './media';
+import { geometry } from './geo';
+import { corrAt } from './stab';
 
 export type ImgFormat = 'jpeg' | 'webp' | 'png';
 export interface ExportSettings {
@@ -133,15 +135,18 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
 async function exportImage(R: Renderer, it: Item, job: ExportJob) {
   const s = job.settings;
   let bm = await decodeFull(it);
-  const [w, h] = outSize(bm.width, bm.height, s, R.maxTex);
-  if (w !== bm.width) {
-    const small = await createImageBitmap(bm, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' });
+  const P = job.params(it);
+  // Output size follows the crop; the source is only scaled down as far as the output needs.
+  const g = geometry(bm.width, bm.height, P);
+  const [w, h] = outSize(g.w, g.h, s, R.maxTex);
+  const k = Math.min(1, w / g.w, R.maxTex / Math.max(bm.width, bm.height));
+  if (k < 0.999) {
+    const small = await createImageBitmap(bm, { resizeWidth: Math.max(1, Math.round(bm.width * k)), resizeHeight: Math.max(1, Math.round(bm.height * k)), resizeQuality: 'high' });
     bm.close();
     bm = small;
   }
-  const P = job.params(it);
-  R.setSource(bm, w, h);
-  R.render(P, w, h, { lut: job.lut(P.lut.id), seed: it.id });
+  R.setSource(bm, bm.width, bm.height);
+  R.render(P, w, h, { lut: job.lut(P.lut.id), seed: it.id, masks: it.masks });
   bm.close();
   if (R.gl.drawingBufferWidth < w) throw new Error('The image is too large for this device. Choose a smaller export size.');
   const blob = await new Promise<Blob | null>((r) => R.canvas.toBlob(r, MIME[s.format], s.quality / 100));
@@ -160,12 +165,13 @@ async function exportVideo(R: Renderer, it: Item, job: ExportJob, res: ExportRes
   const target = writable ? new StreamTarget(writable as unknown as WritableStream, { chunked: true }) : new BufferTarget();
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: writable ? false : 'in-memory' }), target });
   try {
-    const [w, h] = videoSize(it.width, it.height, s, R.maxTex);
+    const P = job.params(it);
+    const g = geometry(it.width, it.height, P);
+    const [w, h] = videoSize(g.w, g.h, s, R.maxTex);
     const order: VideoCodec[] = [s.codec, ...(['avc', 'hevc', 'vp9', 'av1'] as VideoCodec[]).filter((c) => c !== s.codec)];
     const codec = await getFirstEncodableVideoCodec(order, { width: w, height: h });
     if (!codec) throw new Error('This browser cannot encode video at this size');
     if (codec !== s.codec) res.notes.push(`${it.name}: used ${codec.toUpperCase()} because ${s.codec.toUpperCase()} is not supported here`);
-    const P = job.params(it);
     const lut = job.lut(P.lut.id);
     let frame = 0;
     const conv = await Conversion.init({
@@ -175,10 +181,11 @@ async function exportVideo(R: Renderer, it: Item, job: ExportJob, res: ExportRes
         codec, forceTranscode: true,
         ...(s.vQuality === 'custom' ? { bitrate: Math.round(s.vBitrate * 1e6) } : { quality: { medium: QUALITY_MEDIUM, high: QUALITY_HIGH, very_high: QUALITY_VERY_HIGH }[s.vQuality] }),
         frameRate: s.fps || undefined,
-        width: w, height: h, fit: 'fill',
+        // Frames arrive at full size; crop, rotation and stabilisation happen in the renderer.
         process: (sample) => {
-          R.setSource(sample.toCanvasImageSource() as TexImageSource, w, h);
-          R.render(P, w, h, { lut, seed: frame++ });
+          R.setSource(sample.toCanvasImageSource() as TexImageSource, it.width, it.height);
+          const corr = P.stabilize > 0 ? corrAt(it, sample.timestamp, P.stabilize) : null;
+          R.render(P, w, h, { lut, seed: frame++, masks: it.masks, corr });
           return R.canvas;
         },
         processedWidth: w, processedHeight: h,

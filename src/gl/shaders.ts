@@ -22,6 +22,7 @@ export const FS_GRADE = COMMON + `
 uniform sampler2D u_src;
 uniform sampler2D u_curve;
 uniform sampler3D u_lut;
+uniform mat3 u_geo;           // output uv -> source uv (crop, straighten, rotate, flip, stabilise)
 uniform vec3 u_wb;            // exposure * white balance multipliers (linear)
 uniform float u_con, u_hi, u_sh, u_sat, u_vib;
 uniform int u_fOn, u_fMono;
@@ -49,7 +50,9 @@ vec3 hsl2rgb(vec3 h){
 }
 
 void main(){
-  vec3 c = texture(u_src, v_uv).rgb;
+  vec2 suv = (u_geo * vec3(v_uv, 1.0)).xy;
+  vec3 c = texture(u_src, suv).rgb;
+  if (any(lessThan(suv, vec2(-0.002))) || any(greaterThan(suv, vec2(1.002)))) c = vec3(0.0);
   c = toGam(toLin(c) * u_wb);
   float l = luma(c);
 
@@ -207,10 +210,34 @@ void main(){
   o = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 
-/** Plain copy, used for "show original". */
+/** Plain copy through the geometry, used for "show original" (same framing as the edit). */
 export const FS_COPY = COMMON + `
 uniform sampler2D u_src;
-void main(){ o = vec4(texture(u_src, v_uv).rgb, 1.0); }`;
+uniform mat3 u_geo;
+void main(){ o = vec4(texture(u_src, (u_geo * vec3(v_uv, 1.0)).xy).rgb, 1.0); }`;
+
+/** Blends a mask's graded image over the base. Linear: full effect at p0 fading to none at p1.
+ *  Radial: ellipse centred at p0 with radii p1, soft edge set by feather. */
+export const FS_MASK = COMMON + `
+uniform sampler2D u_a, u_b;
+uniform int u_type, u_inv;
+uniform vec2 u_p0, u_p1;
+uniform float u_feather, u_amount, u_aspect;
+void main(){
+  vec3 a = texture(u_a, v_uv).rgb, b = texture(u_b, v_uv).rgb;
+  float m;
+  if (u_type == 0) {
+    vec2 d = (u_p1 - u_p0) * vec2(u_aspect, 1.0), q = (v_uv - u_p0) * vec2(u_aspect, 1.0);
+    float t = dot(q, d) / max(dot(d, d), 1e-6);
+    m = 1.0 - smoothstep(0.0, 1.0, t);
+  } else {
+    float r = length((v_uv - u_p0) / max(u_p1, vec2(1e-4)));
+    float f = clamp(u_feather, 0.01, 1.0);
+    m = 1.0 - smoothstep(1.0 - f, 1.0, r);
+  }
+  if (u_inv == 1) m = 1.0 - m;
+  o = vec4(mix(a, b, m * u_amount), 1.0);
+}`;
 
 /** Darkest colour channel, the input for the dehaze haze estimate ("dark channel"). */
 export const FS_MINCH = COMMON + `

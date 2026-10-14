@@ -1,6 +1,8 @@
 import { Renderer } from '../gl/renderer';
 import { loadPreview } from '../media';
-import { S, curItem, emit, lutById, on, paramsFor, remember, select } from '../state';
+import { S, curItem, emit, lutById, on, outDims, paramsFor, remember, select, setV } from '../state';
+import { corrAt } from '../stab';
+import { geometry } from '../geo';
 import { $, fmtT, h, toast } from './dom';
 import type { Item } from '../model';
 
@@ -20,14 +22,15 @@ function displaySize(it: Item): [number, number] {
   const r = stage.getBoundingClientRect();
   const pad = 16;
   const aw = Math.max(50, r.width - pad * 2), ah = Math.max(50, r.height - pad * 2 - (it.kind === 'video' ? 44 : 0));
-  const k = Math.min(aw / it.width, ah / it.height);
-  const cw = Math.round(it.width * k), ch = Math.round(it.height * k);
+  const [gw, gh] = outDims(it);
+  const k = Math.min(aw / gw, ah / gh);
+  const cw = Math.round(gw * k), ch = Math.round(gh * k);
   view.style.width = cw + 'px';
   view.style.height = ch + 'px';
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   // When zoomed in, render more pixels so the enlarged view stays sharp (bounded by the source).
   let pw = cw * dpr * renderZ, ph = ch * dpr * renderZ;
-  const cap = Math.min(1, (renderZ > 1 ? 4096 : 2048) / Math.max(pw, ph), it.width / pw);
+  const cap = Math.min(1, (renderZ > 1 ? 4096 : 2048) / Math.max(pw, ph), gw / pw);
   pw *= cap; ph *= cap;
   return [pw, ph];
 }
@@ -51,7 +54,9 @@ function paint() {
     R.setCachedSource(it.thumb, it.thumb, it.thumb.width, it.thumb.height);
   }
   const P = paramsFor(it);
-  R.render(P, w, hh, { bypass: S.showBefore, lut: lutById(P.lut.id), seed: it.kind === 'video' && video && !video.paused ? ++seed : it.id });
+  const corr = it.kind === 'video' && video && P.stabilize > 0 ? corrAt(it, video.currentTime, P.stabilize) : null;
+  placeGrid();
+  R.render(P, w, hh, { bypass: S.showBefore, lut: lutById(P.lut.id), seed: it.kind === 'video' && video && !video.paused ? ++seed : it.id, masks: it.masks, corr });
 }
 
 async function ensureImage(it: Item) {
@@ -178,10 +183,15 @@ export function pick(fn: Pick | null) {
   stage.classList.toggle('picking', !!fn);
 }
 
+/** Where a tap on the preview lands in the source image (through crop, rotation and flip). */
+function srcPoint(e: PointerEvent): [number, number] {
+  const it = curItem()!, r = view.getBoundingClientRect();
+  return geometry(it.width, it.height, paramsFor(it)).map((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+}
+
 function sampleVideo(e: PointerEvent): [number, number, number] | null {
   if (!video) return null;
-  const r = view.getBoundingClientRect();
-  const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+  const [fx, fy] = srcPoint(e);
   const c = new OffscreenCanvas(1, 1), x = c.getContext('2d')!;
   x.drawImage(video, fx * video.videoWidth - 2, fy * video.videoHeight - 2, 5, 5, 0, 0, 1, 1);
   const d = x.getImageData(0, 0, 1, 1).data;
@@ -199,8 +209,9 @@ async function sampleImage(e: PointerEvent): Promise<[number, number, number] | 
     c.getContext('2d')!.drawImage(bm, 0, 0, c.width, c.height);
     pickSrc = { it, c };
   }
-  const r = view.getBoundingClientRect(), c = pickSrc.c;
-  const x = Math.round(((e.clientX - r.left) / r.width) * c.width), y = Math.round(((e.clientY - r.top) / r.height) * c.height);
+  const c = pickSrc.c;
+  const [u, v] = srcPoint(e);
+  const x = Math.round(u * c.width), y = Math.round(v * c.height);
   const d = c.getContext('2d')!.getImageData(Math.max(0, x - 2), Math.max(0, y - 2), 5, 5).data;
   const acc = [0, 0, 0];
   for (let i = 0; i < d.length; i += 4) { acc[0] += d[i]; acc[1] += d[i + 1]; acc[2] += d[i + 2]; }
@@ -283,6 +294,7 @@ function zoomAt(nz: number, cx: number, cy: number) {
     }
     if (Math.hypot(e.clientX - x0, e.clientY - y0) > 10) { moved = true; clearTimeout(hold); }
     if (moved && z > 1) { tx += e.clientX - lx; ty += e.clientY - ly; applyZoom(); }
+    else if (moved && S.tab === 'crop') panCrop(e.clientX - lx, e.clientY - ly);
     lx = e.clientX; ly = e.clientY;
   });
   const end = (e: PointerEvent) => {
@@ -302,7 +314,7 @@ function zoomAt(nz: number, cx: number, cy: number) {
       const now = Date.now();
       if (now - lastTap < 300) { if (z > 1) resetZoom(); else zoomAt(2.5, e.clientX, e.clientY); lastTap = 0; }
       else lastTap = now;
-    } else if (z === 1 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) select(S.cur + (dx < 0 ? 1 : -1));
+    } else if (z === 1 && S.tab !== 'crop' && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) select(S.cur + (dx < 0 ? 1 : -1));
   };
   stage.addEventListener('pointerup', end);
   stage.addEventListener('pointercancel', end);
@@ -321,6 +333,30 @@ function zoomAt(nz: number, cx: number, cy: number) {
   });
   document.addEventListener('keyup', (e) => { if (e.key === 'b' || e.key === 'B') before(false); });
 }
+
+/* ---------- crop: drag to reframe, thirds grid ---------- */
+/** Moving the image by (dx, dy) screen pixels moves the crop the other way. */
+function panCrop(dx: number, dy: number) {
+  const it = curItem();
+  if (!it) return;
+  const P = paramsFor(it);
+  const g = geometry(it.width, it.height, P);
+  const r = view.getBoundingClientRect();
+  const fx = g.fx - (dx * g.w) / r.width / g.Wr, fy = g.fy - (dy * g.h) / r.height / g.Hr;
+  const c = geometry(it.width, it.height, { ...P, frame: { ...P.frame, x: fx, y: fy } });
+  setV('frame', { ...P.frame, x: c.fx, y: c.fy });
+}
+const grid = $('#cropGrid');
+function placeGrid() {
+  grid.hidden = S.tab !== 'crop' || view.hidden;
+  if (grid.hidden) return;
+  grid.style.left = view.offsetLeft + 'px';
+  grid.style.top = view.offsetTop + 'px';
+  grid.style.width = view.offsetWidth + 'px';
+  grid.style.height = view.offsetHeight + 'px';
+  grid.style.transform = view.style.transform;
+}
+on('ui', draw);
 
 /* ---------- previous / next ---------- */
 const prevBtn = $<HTMLButtonElement>('#prevBtn'), nextBtn = $<HTMLButtonElement>('#nextBtn');

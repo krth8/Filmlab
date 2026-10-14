@@ -1,11 +1,12 @@
 import { DEF, NUM, clone, effective, type Item, type Key, type Override, type Params } from './model';
+import { geometry } from './geo';
 import type { CubeLut } from './cube';
 import { DEFAULT_EXPORT, type ExportSettings } from './exporter';
 import * as store from './store';
 
-export type Tab = 'looks' | 'light' | 'color' | 'curves' | 'fx' | 'trim';
+export type Tab = 'looks' | 'light' | 'color' | 'curves' | 'fx' | 'crop' | 'trim';
 export interface UserLook { id: string; name: string; params: Params }
-interface Saved { override: Override; trim: Item['trim'] }
+interface Saved { override: Override; trim: Item['trim']; masks?: Item['masks']; motion?: Item['motion'] }
 
 export const S = {
   items: [] as Item[],
@@ -65,7 +66,7 @@ export function changed() {
 }
 
 export function remember(it: Item) {
-  S.edits[it.key] = { override: it.override, trim: it.trim };
+  S.edits[it.key] = { override: it.override, trim: it.trim, masks: it.masks, motion: it.motion };
   store.setLater('edits', () => S.edits);
 }
 
@@ -96,3 +97,9 @@ export async function restore() {
 export const saveLooks = () => store.set('looks', S.looks);
 export const saveLuts = () => store.set('luts', S.luts);
 export const saveExport = () => store.set('export', S.exportSettings);
+
+/** Output size (in source pixels) after crop and rotation. */
+export function outDims(it: Item, P: Params = paramsFor(it)): [number, number] {
+  const g = geometry(it.width || 1, it.height || 1, P);
+  return [g.w, g.h];
+}

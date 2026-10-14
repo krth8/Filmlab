@@ -9,12 +9,12 @@ import {
 } from '../state';
 import { $, fmtT, h, isPhone, toast } from './dom';
 import { refresh, renderThumb } from './reel';
-import { currentTime, pick, seek, trimChanged } from './stage';
+import { currentTime, draw, pick, seek, trimChanged } from './stage';
 
 const body = $('#body');
 const panel = $('#panel');
 const app = $('#app');
-const TITLES: Record<Tab, string> = { looks: 'Looks', light: 'Light', color: 'Color', curves: 'Curves', fx: 'Effects', trim: 'Trim' };
+const TITLES: Record<Tab, string> = { looks: 'Looks', light: 'Light', color: 'Color', curves: 'Curves', fx: 'Effects', crop: 'Crop', trim: 'Trim' };
 
 /* ---------- tabs, scope and the phone drawer ---------- */
 function syncChrome() {
@@ -543,6 +543,35 @@ function pFx() {
   slider(ha, { key: 'halation', label: 'Amount', min: 0, max: 100 });
 }
 
+/* ---------- Crop ---------- */
+const ASPECTS: [string, number][] = [['Original', 0], ['1:1', 1], ['4:5', 4 / 5], ['3:4', 3 / 4], ['2:3', 2 / 3], ['9:16', 9 / 16], ['16:9', 16 / 9], ['3:2', 3 / 2], ['4:3', 4 / 3], ['5:4', 5 / 4]];
+function pCrop() {
+  const a = sec('Aspect ratio');
+  const ap = pills(a);
+  const cur = getV('aspect');
+  for (const [n, v] of ASPECTS) {
+    ap.append(h('button', { class: 'pill' + (Math.abs(cur - v) < 1e-3 ? ' on' : ''), onclick: () => { setV('aspect', v); build(); } }, n));
+  }
+  if (S.scope === 'all') hint(a, 'Applies to every item. Use “This item only” to reframe a single shot.');
+
+  const st = sec('Straighten');
+  slider(st, { key: 'angle', label: 'Angle', min: -45, max: 45, step: 0.1, unit: '°' });
+
+  const fr = sec('Framing');
+  slider(fr, {
+    key: 'frame', label: 'Zoom', min: 1, max: 4, step: 0.01, unit: '×', def: 1,
+    get: () => getV('frame').zoom, set: (v) => setV('frame', { ...getV('frame'), zoom: v }),
+  });
+  hint(fr, 'Drag the image to move the crop.');
+  fr.append(h('button', { class: 'btn small', onclick: () => { setV('frame', { x: 0, y: 0, zoom: 1 }); build(); } }, 'Reset framing'));
+
+  const rf = sec('Rotate and flip');
+  rf.append(h('div', { class: 'btnrow' },
+    h('button', { class: 'btn small', onclick: () => { setV('rot', (((getV('rot') - 1) % 4) + 4) % 4); build(); } }, '⟲ Left'),
+    h('button', { class: 'btn small', onclick: () => { setV('rot', (getV('rot') + 1) % 4); build(); } }, 'Right ⟳'),
+    h('button', { class: 'btn small' + (getV('flip') ? ' primary' : ''), onclick: () => { setV('flip', !getV('flip')); build(); } }, 'Flip')));
+}
+
 /* ---------- Trim ---------- */
 const strips = new WeakMap<object, Promise<ImageBitmap[]>>();
 function pTrim() {
@@ -606,9 +635,10 @@ export function build() {
   const it = curItem();
   if (S.tab === 'trim' && (!it || it.kind !== 'video')) S.tab = 'looks';
   body.replaceChildren();
-  if (it) ({ looks: pLooks, light: pLight, color: pColor, curves: pCurves, fx: pFx, trim: pTrim })[S.tab]();
+  if (it) ({ looks: pLooks, light: pLight, color: pColor, curves: pCurves, fx: pFx, crop: pCrop, trim: pTrim })[S.tab]();
   else body.append(h('p', { class: 'hint' }, 'Open photos or videos to begin.'));
   syncChrome();
+  draw(); // the crop grid follows the tab
 }
 
 on('select', build);

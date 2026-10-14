@@ -17,6 +17,7 @@ function makeItem(key: string, name: string, kind: Item['kind'], file: File): It
   return {
     id: nextId++, key, name, file, kind,
     override: saved ? clone(saved.override) : {}, trim: saved?.trim ? { ...saved.trim } : null,
+    masks: saved?.masks ? clone(saved.masks) : [], motion: saved?.motion ?? null,
     duration: 0, width: 0, height: 0, preview: null, thumb: null, lum: 0, status: 'loading',
   };
 }

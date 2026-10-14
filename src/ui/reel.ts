@@ -1,6 +1,6 @@
 import { Renderer } from '../gl/renderer';
 import { isTrimmed, type Item, type Params } from '../model';
-import { S, curItem, emit, lutById, on, paramsFor, select } from '../state';
+import { S, curItem, emit, lutById, on, outDims, paramsFor, select } from '../state';
 import { $, fmtT, h } from './dom';
 
 /** Small offscreen renderer shared by the carousel and the look previews. */
@@ -9,8 +9,11 @@ export const TR = new Renderer(document.createElement('canvas'), true);
 export function renderThumb(it: Item, P: Params, out: HTMLCanvasElement) {
   if (!it.thumb) return;
   TR.setCachedSource(it.thumb, it.thumb, it.thumb.width, it.thumb.height);
-  const w = it.thumb.width, hh = it.thumb.height;
-  TR.render(P, w, hh, { lut: lutById(P.lut.id), seed: it.id });
+  const [gw, gh] = outDims(it, P);
+  // Same long side as the thumbnail, in the cropped shape.
+  const sc = Math.max(it.thumb.width, it.thumb.height) / Math.max(gw, gh);
+  const w = Math.max(1, Math.round(gw * sc)), hh = Math.max(1, Math.round(gh * sc));
+  TR.render(P, w, hh, { lut: lutById(P.lut.id), seed: it.id, masks: it.masks });
   if (out.width !== w || out.height !== hh) { out.width = w; out.height = hh; }
   out.getContext('2d')!.drawImage(TR.canvas, 0, 0);
 }
