@@ -190,7 +190,7 @@ export class Renderer {
     this.bind(1, this.curveTex, pr, 'u_curve');
     const ev = Math.pow(2, P.exposure), [wr, wg, wb] = wbGains(P.temp, P.tint);
     this.f(pr, 'u_wb', ev * wr, ev * wg, ev * wb);
-    this.f(pr, 'u_con', 1 + P.contrast / 100);
+    this.f(pr, 'u_con', Math.max(0.15, 1 + P.contrast / 100));
     this.f(pr, 'u_hi', P.highlights / 100);
     this.f(pr, 'u_sh', P.shadows / 100);
     this.f(pr, 'u_sat', 1 + P.saturation / 100);

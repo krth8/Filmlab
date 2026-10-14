@@ -35,6 +35,14 @@ uniform float u_bandH[8];
 
 vec3 toLin(vec3 c){ return pow(max(c, 0.0), vec3(2.2)); }
 vec3 toGam(vec3 c){ return pow(max(c, 0.0), vec3(1.0/2.2)); }
+/** Contrast as an S-curve around mid grey: g is the slope in the midtones (1 = unchanged), while black
+ *  and white stay fixed and the ends roll off smoothly instead of clipping. g < 1 flattens (inverse S). */
+vec3 sCurve(vec3 c, float g){
+  c = clamp(c, 0.0, 1.0);
+  vec3 lo = 0.5 * pow(2.0 * c, vec3(g));
+  vec3 hi = 1.0 - 0.5 * pow(2.0 * (1.0 - c), vec3(g));
+  return mix(lo, hi, step(0.5, c));
+}
 vec3 hsl2rgb(vec3 h){
   vec3 rgb = clamp(abs(mod(h.x*6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
   return h.z + h.y * (rgb - 0.5) * (1.0 - abs(2.0*h.z - 1.0));
@@ -48,7 +56,7 @@ void main(){
   if (u_fOn == 1) {
     vec3 c0 = c;
     c.r *= 1.0 + u_fWarm * 0.16; c.b *= 1.0 - u_fWarm * 0.16;
-    c = (c - 0.45) * (1.0 + u_fCon * 0.7) + 0.45;
+    c = sCurve(c, max(0.15, 1.0 + u_fCon * 0.7));
     l = luma(c);
     if (u_fMono == 1) { l = dot(c, vec3(0.3, 0.59, 0.11)); c = vec3(l); }
     else c = l + (c - l) * (1.0 + u_fSat);
@@ -73,7 +81,7 @@ void main(){
     float lc = min(1.0, l), k = lc*lc;
     if (u_hi < 0.0) c *= 1.0 + u_hi * 0.55 * k; else c += u_hi * 0.45 * k * (1.0 - c);
   }
-  c = (c - 0.45) * u_con + 0.45;
+  if (u_con != 1.0) c = sCurve(c, u_con);
   l = luma(c);
   float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
   c = l + (c - l) * (u_sat * (1.0 + u_vib * (1.0 - clamp(mx - mn, 0.0, 1.0)) * 1.2));
