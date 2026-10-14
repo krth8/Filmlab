@@ -1,4 +1,5 @@
 import './styles.css';
+import { I } from './ui/icons';
 import { clone, type Item } from './model';
 import { canPickDir, fileKey, fromDrop, kindOf, loadItem, pickDirectory, pickFiles, type Picked } from './media';
 import { S, emit, on, restore, select } from './state';
@@ -130,6 +131,8 @@ function showMenu(anchor: HTMLElement) {
 }
 const hideMenu = () => (menu.hidden = true);
 document.addEventListener('pointerdown', (e) => { if (!menu.hidden && !menu.contains(e.target as Node) && !(e.target as Element).closest('#openBtn')) hideMenu(); });
+$('#openBtn').innerHTML = I.open;
+$('#exportBtn').innerHTML = I.export;
 $('#openBtn').onclick = (e) => showMenu(e.currentTarget as HTMLElement);
 $('#exportBtn').onclick = openExport;
 setAddHandler(() => showMenu($('#openBtn')));

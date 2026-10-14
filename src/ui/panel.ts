@@ -9,6 +9,7 @@ import {
   S, changed, curItem, curMask, emit, getV, lutById, maskKey, on, outDims, overrideCount, paramsFor, remember, resetKey, saveLooks, saveLuts, setV, type Tab,
 } from '../state';
 import { $, fmtT, h, isPhone, toast } from './dom';
+import { I, ib } from './icons';
 import { refresh, renderThumb } from './reel';
 import { currentTime, draw, pick, seek, trimChanged } from './stage';
 
@@ -56,24 +57,23 @@ function scopeNote() {
     note.append(h('span', { class: 'ovr-txt' }, own.length ? own.map((k) => LABELS[k]).join(', ') : 'No own adjustments yet'));
   }
   if (S.scope === 'item') {
-    note.append(h('button', { class: 'btn small masksbtn' + (S.masksOpen ? ' on' : ''), onclick: () => {
+    note.append(ib(I.masks, 'Masks', () => {
       S.masksOpen = !S.masksOpen;
       if (!S.masksOpen) S.maskId = null;
       build();
-    } }, 'Masks' + (it.masks.length ? ` (${it.masks.length})` : '')));
+    }, { cls: S.masksOpen ? 'on' : '', text: 'Masks' + (it.masks.length ? ` ${it.masks.length}` : '') }));
   }
   note.append(h('span', { class: 'resets' },
-    h('button', { class: 'btn small ghost', disabled: !own.length, title: 'Remove this item\'s own adjustments', onclick: () => {
+    ib(I.reset, 'Reset this item (remove its own adjustments)', () => {
       it.override = {}; remember(it); changed(); refresh(it); build(); toast('This item follows the global settings again');
-    } }, 'Reset selected'),
+    }, { disabled: !own.length }),
     resetAllBtn()));
 }
 
 /** Two taps: the first arms the button, the second resets everything. */
 let armed = 0;
 function resetAllBtn() {
-  const b = h('button', { class: 'btn small ghost' + (armed ? ' danger' : '') }, armed ? 'Tap again' : 'Reset all') as HTMLButtonElement;
-  b.onclick = () => {
+  const b = ib(I.resetAll, armed ? 'Tap again to reset everything' : 'Reset all items', () => {
     if (!armed) {
       armed = window.setTimeout(() => { armed = 0; scopeNote(); }, 3000);
       scopeNote();
@@ -84,7 +84,7 @@ function resetAllBtn() {
     for (const x of S.items) { x.override = {}; remember(x); }
     changed(); refresh(); build();
     toast('All adjustments reset');
-  };
+  }, { cls: armed ? 'danger' : '', text: armed ? 'Tap again' : undefined });
   return b;
 }
 
@@ -309,7 +309,7 @@ function pLooks() {
     saveLooks(); build(); toast(`Saved “${n}”`);
   };
   name.onkeydown = (e) => { if (e.key === 'Enter') save(); };
-  ps.append(h('div', { class: 'inline' }, name, h('button', { class: 'btn small', onclick: save }, 'Save')));
+  ps.append(h('div', { class: 'inline' }, name, ib(I.save, 'Save as preset', save)));
 
   const f = getV('filter');
   const s = sec('Look', 'filter');
@@ -353,7 +353,7 @@ function pLooks() {
     }
     saveLuts(); build();
   };
-  lp.append(file, h('button', { class: 'pill add', onclick: () => file.click() }, '+ Import'));
+  lp.append(file, ib(I.importFile, 'Import a .cube LUT', () => file.click(), { text: 'Import' }));
   if (lut.id && lutById(lut.id)) slider(l, { key: 'lut', label: 'Strength', min: 0, max: 100, def: 100, get: () => getV('lut').k, set: (v) => setV('lut', { ...getV('lut'), k: v }) });
 }
 
@@ -372,7 +372,7 @@ function pLight() {
   if (curMask()) return;
   const b = sec('Even out the series');
   hint(b, 'Measures the brightness of every item and gives the outliers their own exposure, so the series looks even.');
-  b.append(h('button', { class: 'btn small', onclick: autoMatch }, 'Auto-match exposure'));
+  b.append(ib(I.wand, 'Auto-match exposure', autoMatch, { text: 'Auto-match' }));
 }
 
 function autoMatch() {
@@ -414,7 +414,7 @@ function pColor() {
   const s = sec('White balance');
   slider(s, { key: 'temp', label: 'Temperature', min: -100, max: 100 });
   slider(s, { key: 'tint', label: 'Tint', min: -100, max: 100 });
-  if (!curMask()) s.append(h('button', { class: 'btn small', onclick: () => { pick(neutralize); toast('Tap something that should be grey or white'); if (isPhone()) { S.sheetOpen = false; syncChrome(); } } }, 'Eyedropper: tap something neutral'));
+  if (!curMask()) s.append(ib(I.pipette, 'White balance eyedropper: tap something neutral', () => { pick(neutralize); toast('Tap something that should be grey or white'); if (isPhone()) { S.sheetOpen = false; syncChrome(); } }, { text: 'Pick neutral' }));
   const m = sec('Saturation');
   slider(m, { key: 'saturation', label: 'Saturation', min: -100, max: 100 });
   slider(m, { key: 'vibrance', label: 'Vibrance', min: -100, max: 100 });
@@ -429,7 +429,7 @@ function pColor() {
   });
   s2.append(bands);
   s2.append(h('div', { class: 'picked' }, h('i', { style: `background:hsl(${BANDS[band].h} 75% 52%)` }), h('span', {}, BANDS[band].n), h('span', { style: 'flex:1' }),
-    h('button', { class: 'btn small', onclick: () => {
+    ib(I.pipette, 'Pick a color from the image', () => {
       pick((rgb) => {
         const H = hueOf(rgb);
         let best = 0, bd = 999;
@@ -441,7 +441,7 @@ function pColor() {
       });
       if (isPhone()) { S.sheetOpen = false; syncChrome(); }
       toast('Tap the color in the image');
-    } }, 'Eyedropper')));
+    }, { text: 'Pick' })));
   for (const [k, label, min, max, unit] of [['h', 'Hue', -60, 60, '°'], ['s', 'Saturation', -100, 100, ''], ['l', 'Luminance', -100, 100, '']] as const) {
     slider(s2, {
       key: 'hsl', label, min, max, unit,
@@ -484,7 +484,7 @@ function pCurves() {
   const cv = h('canvas', { id: 'curve', width: 560, height: 560 }) as HTMLCanvasElement;
   s.append(cv);
   hint(s, 'Tap to add a point · drag to move · double-tap to remove.');
-  s.append(h('button', { class: 'btn small', onclick: () => { const c = clone(getV('curves')); c[curveCh] = LIN; setV('curves', c); drawCurve(); } }, 'Reset channel'));
+  s.append(ib(I.reset, 'Reset this channel', () => { const c = clone(getV('curves')); c[curveCh] = LIN; setV('curves', c); drawCurve(); }, { text: 'Reset channel' }));
   curveEvents(cv);
   drawCurve();
 }
@@ -591,9 +591,9 @@ function pStab() {
     hint(s, S.scope === 'all'
       ? `${missing.length} of ${videos.length} videos need a motion analysis first.`
       : 'This video needs a motion analysis first.');
-    s.append(h('button', { class: 'btn small', onclick: () => {
+    s.append(ib(I.wand, 'Analyse motion', () => {
       if (missing.length > 1 || S.scope === 'all') { stabAsk = true; build(); } else runStab(missing);
-    } }, S.scope === 'all' ? 'Stabilize all videos…' : 'Analyse motion'));
+    }, { text: S.scope === 'all' ? 'Stabilize all videos…' : 'Analyse motion' }));
   } else if (missing.length && stabAsk) {
     s.append(h('p', { class: 'warnbox' }, `This will analyse ${missing.length} ${missing.length === 1 ? 'video' : 'videos'} and may take a while. Keep the app open until it is done.`));
     s.append(h('div', { class: 'btnrow' },
@@ -648,16 +648,16 @@ function maskBar() {
   bar.hidden = !(it && S.scope === 'item' && S.masksOpen);
   if (bar.hidden || !it) return;
   bar.replaceChildren();
-  const chip = (label: string, on: boolean, click: () => void, extra = '') => h('button', { class: 'mchip' + (on ? ' on' : '') + extra, onclick: click }, label);
-  bar.append(chip('Base', !S.maskId, () => { S.maskId = null; build(); }));
-  for (const m of it.masks) bar.append(chip(m.name, S.maskId === m.id, () => { S.maskId = m.id; build(); }, m.on ? '' : ' muted'));
-  const add = (type: Mask['type'], label: string) => h('button', { class: 'mchip add', onclick: () => {
+  const chip = (icon: string, label: string, on: boolean, click: () => void, extra = '') => ib(icon, label, click, { cls: 'mchip' + (on ? ' on' : '') + extra, text: label });
+  bar.append(chip(I.base, 'Base', !S.maskId, () => { S.maskId = null; build(); }));
+  for (const m of it.masks) bar.append(chip(m.type === 'linear' ? I.gradient : I.radial, m.name, S.maskId === m.id, () => { S.maskId = m.id; build(); }, m.on ? '' : ' muted'));
+  const add = (type: Mask['type'], icon: string, label: string) => ib(icon, label, () => {
     const m = newMask(type);
     it.masks.push(m);
     S.maskId = m.id;
     remember(it); changed(); build();
-  } }, label);
-  bar.append(add('linear', '+ Gradient'), add('radial', '+ Radial'));
+  }, { cls: 'mchip add' });
+  bar.append(add('linear', I.addGradient, 'Add gradient mask'), add('radial', I.addRadial, 'Add radial mask'));
 }
 
 let delArmed = 0;
@@ -667,17 +667,16 @@ function pMask(m: Mask) {
   const upd = () => { remember(it); changed(); };
   slider(s, { key: 'exposure', label: 'Amount', min: 0, max: 100, def: 100, get: () => m.amount, set: (v) => { m.amount = v; upd(); } });
   if (m.type === 'radial') slider(s, { key: 'exposure', label: 'Feather', min: 0, max: 100, def: 50, get: () => m.feather, set: (v) => { m.feather = v; upd(); } });
-  const del = h('button', { class: 'btn small ghost' }, 'Delete') as HTMLButtonElement;
-  del.onclick = () => {
-    if (!delArmed) { del.classList.add('danger'); del.textContent = 'Tap again'; delArmed = window.setTimeout(() => { delArmed = 0; del.classList.remove('danger'); del.textContent = 'Delete'; }, 3000); return; }
+  const del = ib(I.trash, 'Delete mask', () => {
+    if (!delArmed) { del.classList.add('danger'); del.title = 'Tap again to delete'; delArmed = window.setTimeout(() => { delArmed = 0; del.classList.remove('danger'); del.title = 'Delete mask'; }, 3000); return; }
     clearTimeout(delArmed); delArmed = 0;
     it.masks = it.masks.filter((x) => x !== m);
     S.maskId = null;
     upd(); build();
-  };
+  });
   s.append(h('div', { class: 'btnrow' },
-    h('button', { class: 'btn small' + (m.invert ? ' primary' : ''), onclick: () => { m.invert = !m.invert; upd(); build(); } }, 'Invert'),
-    h('button', { class: 'btn small', onclick: () => { m.on = !m.on; upd(); build(); } }, m.on ? 'Hide' : 'Show'),
+    ib(I.invert, 'Invert mask', () => { m.invert = !m.invert; upd(); build(); }, { cls: m.invert ? 'on' : '' }),
+    ib(m.on ? I.eye : I.eyeOff, m.on ? 'Hide mask' : 'Show mask', () => { m.on = !m.on; upd(); build(); }, { cls: m.on ? '' : 'on' }),
     del));
   hint(s, 'The Light and Color tools below now change only this mask.');
 }
@@ -702,13 +701,13 @@ function pCrop() {
     get: () => getV('frame').zoom, set: (v) => setV('frame', { ...getV('frame'), zoom: v }),
   });
   hint(fr, 'Drag the image to move the crop.');
-  fr.append(h('button', { class: 'btn small', onclick: () => { setV('frame', { x: 0, y: 0, zoom: 1 }); build(); } }, 'Reset framing'));
+  fr.append(ib(I.reset, 'Reset framing', () => { setV('frame', { x: 0, y: 0, zoom: 1 }); build(); }, { text: 'Reset framing' }));
 
   const rf = sec('Rotate and flip');
   rf.append(h('div', { class: 'btnrow' },
-    h('button', { class: 'btn small', onclick: () => { setV('rot', (((getV('rot') - 1) % 4) + 4) % 4); build(); } }, '⟲ Left'),
-    h('button', { class: 'btn small', onclick: () => { setV('rot', (getV('rot') + 1) % 4); build(); } }, 'Right ⟳'),
-    h('button', { class: 'btn small' + (getV('flip') ? ' primary' : ''), onclick: () => { setV('flip', !getV('flip')); build(); } }, 'Flip')));
+    ib(I.rotL, 'Rotate left', () => { setV('rot', (((getV('rot') - 1) % 4) + 4) % 4); build(); }),
+    ib(I.rotR, 'Rotate right', () => { setV('rot', (getV('rot') + 1) % 4); build(); }),
+    ib(I.flip, 'Flip horizontally', () => { setV('flip', !getV('flip')); build(); }, { cls: getV('flip') ? 'on' : '' })));
 }
 
 /* ---------- Trim ---------- */
@@ -728,9 +727,9 @@ function pTrim() {
     layout(); trimChanged(it, edge); emit('trim');
   };
   s.append(h('div', { class: 'btnrow' },
-    h('button', { class: 'btn small', onclick: () => set('in', currentTime()) }, 'Set start here'),
-    h('button', { class: 'btn small', onclick: () => set('out', currentTime()) }, 'Set end here'),
-    h('button', { class: 'btn small ghost', onclick: () => { tr.in = 0; tr.out = it.duration; layout(); trimChanged(it, 'in'); emit('trim'); } }, 'Reset')));
+    ib(I.markIn, 'Set start at the playhead', () => set('in', currentTime()), { text: 'Start' }),
+    ib(I.markOut, 'Set end at the playhead', () => set('out', currentTime()), { text: 'End' }),
+    ib(I.reset, 'Reset trim', () => { tr.in = 0; tr.out = it.duration; layout(); trimChanged(it, 'in'); emit('trim'); })));
   hint(s, 'Drag the yellow handles. Drag in the middle to move the playhead.');
 
   const pct = (v: number) => (v / it.duration) * 100 + '%';
