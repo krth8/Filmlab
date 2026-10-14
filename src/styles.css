@@ -81,6 +81,7 @@ body:not(.has-items) #exportBtn { display: none; }
 .mchip.add { color: var(--muted); background: none; }
 .masksbtn.on { border-color: var(--ovr); color: var(--ovr); }
 .tabs button.off, .toolbar button.off { opacity: .3; pointer-events: none; }
+.warnbox { margin: 0; padding: 10px; border-radius: 8px; background: #3a2a14; color: #f3d9a4; font-size: 12px; line-height: 1.45; }
 .btn.danger { color: var(--warn); border-color: var(--warn); }
 .chips { position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; pointer-events: none; }
 .chip { font-size: 11px; font-family: var(--mono); padding: 3px 8px; border-radius: 99px; background: #000a; border: 1px solid var(--line); letter-spacing: .04em; }

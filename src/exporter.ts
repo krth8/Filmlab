@@ -174,6 +174,7 @@ async function exportVideo(R: Renderer, it: Item, job: ExportJob, res: ExportRes
     if (codec !== s.codec) res.notes.push(`${it.name}: used ${codec.toUpperCase()} because ${s.codec.toUpperCase()} is not supported here`);
     const lut = job.lut(P.lut.id);
     let frame = 0;
+    const clipStart = Math.max(it.trim?.in ?? 0, it.motion?.t[0] ?? 0);
     const conv = await Conversion.init({
       input, output, showWarnings: false,
       trim: it.trim ? { start: it.trim.in, end: it.trim.out } : undefined,
@@ -184,7 +185,8 @@ async function exportVideo(R: Renderer, it: Item, job: ExportJob, res: ExportRes
         // Frames arrive at full size; crop, rotation and stabilisation happen in the renderer.
         process: (sample) => {
           R.setSource(sample.toCanvasImageSource() as TexImageSource, it.width, it.height);
-          const corr = P.stabilize > 0 ? corrAt(it, sample.timestamp, P.stabilize) : null;
+          // Conversion shifts timestamps so the (trimmed) output starts at 0; map back to the clip's timeline.
+          const corr = P.stabilize > 0 ? corrAt(it, sample.timestamp + clipStart, P.stabilize) : null;
           R.render(P, w, h, { lut, seed: frame++, masks: it.masks, corr });
           return R.canvas;
         },

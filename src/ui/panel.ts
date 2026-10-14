@@ -4,6 +4,7 @@ import { BANDS, FILTERS, FMAP, FSLIDERS, HSL_PRESETS } from '../looks';
 import { applyPresetTo } from '../presets';
 import { DEF, LABELS, LIN, NUM, clamp, clone, wbNeutral, type Key, type Mask, type Params, type Pt } from '../model';
 import { videoStrip } from '../media';
+import { analyze } from '../stab';
 import {
   S, changed, curItem, curMask, emit, getV, lutById, maskKey, on, outDims, overrideCount, paramsFor, remember, resetKey, saveLooks, saveLuts, setV, type Tab,
 } from '../state';
@@ -538,7 +539,75 @@ function curveEvents(cv: HTMLCanvasElement) {
 }
 
 /* ---------- Effects ---------- */
+/* ---------- Stabilise ---------- */
+// One analysis job at a time; the panel can be rebuilt while it runs.
+const stabJob = { running: false, idx: 0, total: 0, frac: 0, name: '', ctrl: null as AbortController | null };
+let stabAsk = false;
+function stabStatus(): string {
+  return stabJob.running ? `Analysing ${stabJob.idx + 1} of ${stabJob.total}: ${stabJob.name} · ${Math.round(stabJob.frac * 100)} %` : '';
+}
+async function runStab(items: typeof S.items) {
+  stabJob.running = true; stabJob.total = items.length; stabJob.ctrl = new AbortController();
+  build();
+  let done = 0;
+  try {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      stabJob.idx = i; stabJob.name = it.name; stabJob.frac = 0;
+      const status = document.getElementById('stabStatus');
+      if (status) status.textContent = stabStatus();
+      it.motion = await analyze(it, (f) => {
+        stabJob.frac = f;
+        const el = document.getElementById('stabStatus');
+        if (el) el.textContent = stabStatus();
+      }, stabJob.ctrl.signal);
+      remember(it);
+      done++;
+    }
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') toast(`Stabilisation failed: ${(e as Error).message}`);
+  }
+  stabJob.running = false;
+  if (done && !getV('stabilize')) setV('stabilize', 50);
+  changed();
+  build();
+  if (done) toast(`Analysed ${done} ${done === 1 ? 'video' : 'videos'}`);
+}
+
+function pStab() {
+  const it = curItem()!;
+  const videos = S.items.filter((x) => x.kind === 'video' && x.status === 'ready');
+  if (!videos.length) return;
+  const s = sec('Stabilize', 'video');
+  const targets = S.scope === 'all' ? videos : it.kind === 'video' ? [it] : [];
+  if (!targets.length) { hint(s, 'Select a video, or use “All items” to stabilise every video.'); return; }
+  const missing = targets.filter((x) => !x.motion);
+  if (stabJob.running) {
+    s.append(h('p', { class: 'hint', id: 'stabStatus' }, stabStatus()));
+    s.append(h('button', { class: 'btn small ghost', onclick: () => stabJob.ctrl?.abort() }, 'Cancel'));
+    return;
+  }
+  if (missing.length && !stabAsk) {
+    hint(s, S.scope === 'all'
+      ? `${missing.length} of ${videos.length} videos need a motion analysis first.`
+      : 'This video needs a motion analysis first.');
+    s.append(h('button', { class: 'btn small', onclick: () => {
+      if (missing.length > 1 || S.scope === 'all') { stabAsk = true; build(); } else runStab(missing);
+    } }, S.scope === 'all' ? 'Stabilize all videos…' : 'Analyse motion'));
+  } else if (missing.length && stabAsk) {
+    s.append(h('p', { class: 'warnbox' }, `This will analyse ${missing.length} ${missing.length === 1 ? 'video' : 'videos'} and may take a while. Keep the app open until it is done.`));
+    s.append(h('div', { class: 'btnrow' },
+      h('button', { class: 'btn small primary', onclick: () => { stabAsk = false; runStab(missing); } }, 'Start'),
+      h('button', { class: 'btn small ghost', onclick: () => { stabAsk = false; build(); } }, 'Cancel')));
+  }
+  if (!missing.length || targets.some((x) => x.motion)) {
+    slider(s, { key: 'stabilize', label: 'Smoothness', min: 0, max: 100 });
+    hint(s, 'Follows the motion most of the frame agrees on, so people moving through the shot do not throw it off. The edges are cropped slightly to hide the movement.');
+  }
+}
+
 function pFx() {
+  pStab();
   const v = sec('Vignette');
   slider(v, { key: 'vignette', label: 'Amount', min: -100, max: 100 });
   slider(v, { key: 'vigSize', label: 'Size', min: 0, max: 100 });
