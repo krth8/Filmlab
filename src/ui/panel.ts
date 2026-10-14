@@ -16,12 +16,12 @@ import { currentTime, draw, pick, seek, trimChanged } from './stage';
 const body = $('#body');
 const panel = $('#panel');
 const app = $('#app');
-const TITLES: Record<Tab, string> = { looks: 'Looks', light: 'Light', color: 'Color', curves: 'Curves', fx: 'Effects', crop: 'Crop', trim: 'Trim' };
+const TITLES: Record<Tab, string> = { looks: 'Looks', light: 'Light', color: 'Color', curves: 'Curves', fx: 'Effects', crop: 'Crop', trim: 'Video' };
 
 /* ---------- tabs, scope and the phone drawer ---------- */
 function syncChrome() {
   const it = curItem();
-  const hasVideo = !!it && it.kind === 'video' && it.status === 'ready';
+  const hasVideo = S.items.some((x) => x.kind === 'video' && x.status === 'ready');
   document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) => {
     if (b.dataset.tab === 'trim') b.hidden = !hasVideo;
     const inToolbar = !!b.closest('#toolbar');
@@ -34,7 +34,6 @@ function syncChrome() {
   $('#sheetTitle').textContent = TITLES[S.tab];
   document.querySelectorAll<HTMLButtonElement>('.seg button').forEach((b) => b.classList.toggle('on', b.dataset.scope === S.scope));
   $('#scopeItem').textContent = it ? 'Only ' + it.name.replace(/\.[^.]+$/, '') : 'This item only';
-  $('.scope').hidden = S.tab === 'trim';
   panel.classList.toggle('scope-item', S.scope === 'item');
   panel.classList.toggle('open', S.sheetOpen);
   $('#sheetOpen').hidden = S.sheetOpen || !it;
@@ -577,7 +576,7 @@ function pStab() {
   const it = curItem()!;
   const videos = S.items.filter((x) => x.kind === 'video' && x.status === 'ready');
   if (!videos.length) return;
-  const s = sec('Stabilize', 'video');
+  const s = sec('Stabilize');
   const targets = S.scope === 'all' ? videos : it.kind === 'video' ? [it] : [];
   if (!targets.length) { hint(s, 'Select a video, or use “All items” to stabilise every video.'); return; }
   const missing = targets.filter((x) => !x.motion);
@@ -606,7 +605,6 @@ function pStab() {
 }
 
 function pFx() {
-  pStab();
   const v = sec('Vignette');
   slider(v, { key: 'vignette', label: 'Amount', min: -100, max: 100 });
   slider(v, { key: 'vigSize', label: 'Size', min: 0, max: 100 });
@@ -758,11 +756,14 @@ function pCrop() {
 
 /* ---------- Trim ---------- */
 const strips = new WeakMap<object, Promise<ImageBitmap[]>>();
-function pTrim() {
+function pVideo() {
   const it = curItem();
-  if (!it || it.kind !== 'video' || !it.trim) return;
-  const tr = it.trim;
-  const s = sec('Trim', fmtT(it.duration) + ' total');
+  if (it && it.kind === 'video' && it.trim) pTrim(it);
+  pStab();
+}
+function pTrim(it: Item) {
+  const tr = it.trim!;
+  const s = sec('Trim', `this video · ${fmtT(it.duration)} total`);
   const cv = h('canvas', { width: 640, height: 112 }) as HTMLCanvasElement;
   const shL = h('div', { class: 'shade' }), shR = h('div', { class: 'shade' }), win = h('div', { class: 'win' }), ph = h('div', { class: 'ph' });
   const tl = h('div', { class: 'trimtl', id: 'tl' }, cv, shL, shR, win, ph);
@@ -817,12 +818,12 @@ on('trim', () => layoutPlayhead());
 /* ---------- build ---------- */
 export function build() {
   const it = curItem();
-  if (S.tab === 'trim' && (!it || it.kind !== 'video')) S.tab = 'looks';
+  if (S.tab === 'trim' && !S.items.some((x) => x.kind === 'video')) S.tab = 'looks';
   if (curMask() && !MASK_TABS.includes(S.tab)) S.tab = 'light';
   body.replaceChildren();
   maskBar();
   if (it && curMask()) pMask(curMask()!);
-  if (it) ({ looks: pLooks, light: pLight, color: pColor, curves: pCurves, fx: pFx, crop: pCrop, trim: pTrim })[S.tab]();
+  if (it) ({ looks: pLooks, light: pLight, color: pColor, curves: pCurves, fx: pFx, crop: pCrop, trim: pVideo })[S.tab]();
   else body.append(h('p', { class: 'hint' }, 'Open photos or videos to begin.'));
   syncChrome();
   draw(); // the crop grid follows the tab

@@ -94,8 +94,6 @@ export const lutById = (id: string | null) => (id ? S.luts.find((l) => l.id === 
 export function select(i: number) {
   if (!S.items.length) return;
   S.cur = (i + S.items.length) % S.items.length;
-  const it = curItem()!;
-  if (it.kind !== 'video' && S.tab === 'trim') S.tab = 'looks';
   S.showBefore = false;
   S.maskId = null;
   emit('select');
