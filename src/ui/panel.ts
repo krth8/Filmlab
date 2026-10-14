@@ -1,7 +1,7 @@
 import { curveLUT } from '../curves';
 import { parseCube } from '../cube';
 import { BANDS, CURVES, FILTERS, FMAP, FSLIDERS, HSL_PRESETS } from '../looks';
-import { PRESETS, PMAP, applyPresetTo } from '../presets';
+import { applyPresetTo } from '../presets';
 import { DEF, LABELS, LIN, NUM, clamp, clone, wbNeutral, type Key, type Params, type Pt } from '../model';
 import { videoStrip } from '../media';
 import {
@@ -244,17 +244,38 @@ function centerOn(strip: HTMLElement) {
 let filterDetails = false;
 let presetId = '';
 function pLooks() {
-  // Presets: complete styles
-  const ps = sec('Presets', 'hele stilen');
-  const pickPreset = (id: string) => { presetId = id; applyLook(applyPresetTo(baseParams(), PMAP[id])); toast(`«${PMAP[id].name}» brukt`); };
-  ps.append(cycler(PRESETS.map((x) => ({ id: x.id, name: x.name, group: x.g })), presetId, pickPreset, 'Velg preset'));
-  const pg = h('div', { class: 'looks strip-row' });
-  for (const x of PRESETS) pg.append(lookTile(x.name, () => applyPresetTo(baseParams(), x), x.id === presetId, () => pickPreset(x.id)));
-  ps.append(pg);
-  centerOn(pg);
+  // Presets: the user's own saved setups
+  const ps = sec('Presets', 'dine egne');
+  const usePreset = (id: string) => {
+    const L = S.looks.find((x) => x.id === id);
+    if (!L) return;
+    presetId = id;
+    applyLook(applyPresetTo(baseParams(), L.params));
+    toast(`«${L.name}» brukt`);
+  };
+  if (S.looks.length) {
+    ps.append(cycler(S.looks.map((x) => ({ id: x.id, name: x.name })), presetId, usePreset, 'Velg preset'));
+    const pg = h('div', { class: 'looks strip-row' });
+    for (const L of S.looks) {
+      pg.append(lookTile(L.name, () => applyPresetTo(baseParams(), L.params), L.id === presetId, () => usePreset(L.id),
+        () => { S.looks = S.looks.filter((x) => x !== L); if (presetId === L.id) presetId = ''; saveLooks(); build(); }));
+    }
+    ps.append(pg);
+    centerOn(pg);
+  } else hint(ps, 'Ingen presets ennå. Sett opp look, lys, farge og effekter som du vil ha dem, og lagre oppsettet her.');
+  const name = h('input', { type: 'text', id: 'lookName', placeholder: 'Navn på preset', maxlength: 40 }) as HTMLInputElement;
+  const save = () => {
+    const n = name.value.trim() || `Preset ${S.looks.length + 1}`;
+    const id = Date.now().toString(36);
+    S.looks.push({ id, name: n, params: clone(baseParams()) });
+    presetId = id;
+    saveLooks(); build(); toast(`Lagret «${n}»`);
+  };
+  name.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+  ps.append(h('div', { class: 'inline' }, name, h('button', { class: 'btn small', onclick: save }, 'Lagre')));
 
   const f = getV('filter');
-  const s = sec('Filter');
+  const s = sec('Look', 'filter');
   const pickFilter = (id: string) => { setV('filter', { id, k: 100, v: null }); build(); };
   s.append(cycler(FILTERS.map((x) => ({ id: x.id, name: x.name, group: x.g })), f.id, pickFilter));
   const g = h('div', { class: 'looks strip-row' });
@@ -276,22 +297,6 @@ function pLooks() {
       }
     }
   }
-
-  // Saved looks
-  const m = sec('Mine presets', 'lagre hele oppsettet');
-  if (S.looks.length) {
-    const mg = h('div', { class: 'looks strip-row' });
-    for (const L of S.looks) mg.append(lookTile(L.name, () => L.params, false, () => { applyLook(clone(L.params)); toast(`«${L.name}» brukt`); }, () => { S.looks = S.looks.filter((x) => x !== L); saveLooks(); build(); }));
-    m.append(mg);
-  }
-  const name = h('input', { type: 'text', id: 'lookName', placeholder: 'Navn på preset', maxlength: 40 }) as HTMLInputElement;
-  const save = () => {
-    const n = name.value.trim() || `Look ${S.looks.length + 1}`;
-    S.looks.push({ id: Date.now().toString(36), name: n, params: clone(baseParams()) });
-    saveLooks(); build(); toast(`Lagret «${n}»`);
-  };
-  name.onkeydown = (e) => { if (e.key === 'Enter') save(); };
-  m.append(h('div', { class: 'inline' }, name, h('button', { class: 'btn small', onclick: save }, 'Lagre')));
 
   // LUTs
   const l = sec('LUT', '.cube 3D');

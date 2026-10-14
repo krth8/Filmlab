@@ -16,7 +16,8 @@ out vec4 o;
 float luma(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 `;
 
-/** Colour grade: exposure + white balance in linear light, then tone, saturation, film look, LUT, HSL and curves. */
+/** Colour grade, in layers: exposure + white balance (linear light) → look and LUT → the user's tone and
+ *  saturation → selective colour → curves. Later layers always win over the look. */
 export const FS_GRADE = COMMON + `
 uniform sampler2D u_src;
 uniform sampler2D u_curve;
@@ -43,15 +44,6 @@ void main(){
   vec3 c = texture(u_src, v_uv).rgb;
   c = toGam(toLin(c) * u_wb);
   float l = luma(c);
-  if (u_sh != 0.0) { float q = 1.0 - min(1.0, l); c *= 1.0 + u_sh * 1.3 * q*q*q; }
-  if (u_hi != 0.0) {
-    float lc = min(1.0, l), k = lc*lc;
-    if (u_hi < 0.0) c *= 1.0 + u_hi * 0.55 * k; else c += u_hi * 0.45 * k * (1.0 - c);
-  }
-  c = (c - 0.45) * u_con + 0.45;
-  l = luma(c);
-  float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
-  c = l + (c - l) * (u_sat * (1.0 + u_vib * (1.0 - clamp(mx - mn, 0.0, 1.0)) * 1.2));
 
   if (u_fOn == 1) {
     vec3 c0 = c;
@@ -73,6 +65,19 @@ void main(){
     vec3 coord = c * ((u_lutSize - 1.0) / u_lutSize) + 0.5 / u_lutSize;
     c = mix(c, texture(u_lut, coord).rgb, u_lutK);
   }
+
+  // Tone and saturation sit on top of the look, so e.g. saturation -100 always gives black and white.
+  l = luma(c);
+  if (u_sh != 0.0) { float q = 1.0 - min(1.0, l); c *= 1.0 + u_sh * 1.3 * q*q*q; }
+  if (u_hi != 0.0) {
+    float lc = min(1.0, l), k = lc*lc;
+    if (u_hi < 0.0) c *= 1.0 + u_hi * 0.55 * k; else c += u_hi * 0.45 * k * (1.0 - c);
+  }
+  c = (c - 0.45) * u_con + 0.45;
+  l = luma(c);
+  float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
+  c = l + (c - l) * (u_sat * (1.0 + u_vib * (1.0 - clamp(mx - mn, 0.0, 1.0)) * 1.2));
+  c = clamp(c, 0.0, 1.0);
 
   if (u_hslOn == 1) {
     float M = max(c.r, max(c.g, c.b)), m = min(c.r, min(c.g, c.b)), d = M - m;
