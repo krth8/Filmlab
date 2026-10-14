@@ -31,7 +31,6 @@ function syncChrome() {
     b.classList.toggle('off', off);
     b.disabled = off;
   });
-  maskBar();
   $('#sheetTitle').textContent = TITLES[S.tab];
   document.querySelectorAll<HTMLButtonElement>('.seg button').forEach((b) => b.classList.toggle('on', b.dataset.scope === S.scope));
   $('#scopeItem').textContent = it ? 'Only ' + it.name.replace(/\.[^.]+$/, '') : 'This item only';
@@ -641,14 +640,11 @@ function newMask(type: Mask['type']): Mask {
     : { id: 'm' + Date.now().toString(36), name: `Radial ${n}`, type, on: true, invert: false, amount: 100, feather: 50, a: [0.5, 0.5], b: [0.28, (0.28 * w) / hh], adj: {} };
 }
 
-/** Layer stack, anchored above the tools while masks are open. Top row = top layer: it is
+/** Layer stack, the first card in the panel while masks are open. Top row = top layer: it is
  *  blended last, so it wins where masks overlap. Base (the item itself) is always at the bottom. */
 function maskBar() {
-  const bar = $('#maskbar');
   const it = curItem();
-  bar.hidden = !(it && S.scope === 'item' && S.masksOpen);
-  if (bar.hidden || !it) return;
-  bar.replaceChildren();
+  if (!it || S.scope !== 'item' || !S.masksOpen) return;
   const upd = () => { remember(it); changed(); };
   const add = (type: Mask['type'], icon: string, label: string) => ib(icon, label, () => {
     const m = newMask(type);
@@ -656,8 +652,9 @@ function maskBar() {
     S.maskId = m.id;
     upd(); build();
   });
-  bar.append(h('div', { class: 'lhead' }, h('h3', {}, 'Layers'), h('span', { style: 'flex:1' }),
+  const bar = h('div', { class: 'sec layers' }, h('div', { class: 'lhead' }, h('h3', {}, 'Layers'), h('span', { style: 'flex:1' }),
     add('linear', I.addGradient, 'Add gradient mask'), add('radial', I.addRadial, 'Add radial mask')));
+  body.append(bar);
   const list = h('div', { class: 'llist' });
   const row = (icon: string, name: string, on: boolean, select: () => void, m?: Mask) => {
     const r = h('div', { class: 'lrow' + (on ? ' on' : '') + (m && !m.on ? ' muted' : ''), role: 'button', tabindex: 0, onclick: select });
@@ -823,6 +820,7 @@ export function build() {
   if (S.tab === 'trim' && (!it || it.kind !== 'video')) S.tab = 'looks';
   if (curMask() && !MASK_TABS.includes(S.tab)) S.tab = 'light';
   body.replaceChildren();
+  maskBar();
   if (it && curMask()) pMask(curMask()!);
   if (it) ({ looks: pLooks, light: pLight, color: pColor, curves: pCurves, fx: pFx, crop: pCrop, trim: pTrim })[S.tab]();
   else body.append(h('p', { class: 'hint' }, 'Open photos or videos to begin.'));

@@ -74,11 +74,9 @@ body:not(.has-items) #exportBtn { display: none; }
 .maskov .mline.dim { opacity: .45; }
 .maskov .mline.dash { stroke-dasharray: 4 4; }
 .maskov .mh { fill: #fff; stroke: #000a; pointer-events: all; cursor: grab; touch-action: none; }
-.maskbar { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 10px; border-bottom: 1px solid var(--line); }
-.lhead { display: flex; align-items: center; gap: 6px; }
-.lhead h3 { margin: 0; font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.llist { display: flex; flex-direction: column; gap: 4px; max-height: 172px; overflow-y: auto; scrollbar-width: thin; }
-.lrow { flex: none; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 4px 0 0; border: 1px solid var(--line); border-radius: 10px; background: var(--raise); cursor: pointer; font-size: 13px; font-weight: 600; }
+.lhead { display: flex; align-items: center; gap: 6px; margin-top: -4px; }
+.llist { display: flex; flex-direction: column; gap: 4px; }
+.lrow { flex: none; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 4px 0 0; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); cursor: pointer; font-size: 13px; font-weight: 600; }
 .lrow.on { border-color: var(--ovr); color: var(--ovr); }
 .lrow.muted .lic, .lrow.muted .lname { opacity: .45; }
 .lrow.drag { position: relative; z-index: 2; box-shadow: 0 6px 20px #000a; border-color: var(--accent); }
