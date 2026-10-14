@@ -25,6 +25,7 @@ export const I = {
   pipette: P('<path d="M14.5 4.5l5 5M3 21l2-1 9.5-9.5-3-3L2 17l1 4z"/><path d="M13 6l1.8-1.8a2.5 2.5 0 0 1 3.5 0l1.5 1.5a2.5 2.5 0 0 1 0 3.5L18 11"/>'),
   save: P('<path d="M6 3h12v18l-6-4-6 4z"/><path d="M12 7v6M9 10h6"/>'),
   importFile: P('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M12 12v6M9 15l3 3 3-3"/>'),
+  grip: P('<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/>'),
   wand: P('<path d="M4 20L16 8M14 6l4 4"/><path d="M18 2v3M20.5 4.5h-3M7 3v2M8 4H6M20 13v2M21 14h-2"/>'),
 };
 

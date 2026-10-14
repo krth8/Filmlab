@@ -2,7 +2,7 @@ import { curveLUT } from '../curves';
 import { parseCube } from '../cube';
 import { BANDS, FILTERS, FMAP, FSLIDERS, HSL_PRESETS } from '../looks';
 import { applyPresetTo } from '../presets';
-import { DEF, LABELS, LIN, NUM, clamp, clone, wbNeutral, type Key, type Mask, type Params, type Pt } from '../model';
+import { DEF, LABELS, LIN, NUM, clamp, clone, wbNeutral, type Key, type Item, type Mask, type Params, type Pt } from '../model';
 import { videoStrip } from '../media';
 import { analyze } from '../stab';
 import {
@@ -641,23 +641,73 @@ function newMask(type: Mask['type']): Mask {
     : { id: 'm' + Date.now().toString(36), name: `Radial ${n}`, type, on: true, invert: false, amount: 100, feather: 50, a: [0.5, 0.5], b: [0.28, (0.28 * w) / hh], adj: {} };
 }
 
-/** Anchored above the tools while masks are open: Base (the item itself), each mask, and add buttons. */
+/** Layer stack, anchored above the tools while masks are open. Top row = top layer: it is
+ *  blended last, so it wins where masks overlap. Base (the item itself) is always at the bottom. */
 function maskBar() {
   const bar = $('#maskbar');
   const it = curItem();
   bar.hidden = !(it && S.scope === 'item' && S.masksOpen);
   if (bar.hidden || !it) return;
   bar.replaceChildren();
-  const chip = (icon: string, label: string, on: boolean, click: () => void, extra = '') => ib(icon, label, click, { cls: 'mchip' + (on ? ' on' : '') + extra, text: label });
-  bar.append(chip(I.base, 'Base', !S.maskId, () => { S.maskId = null; build(); }));
-  for (const m of it.masks) bar.append(chip(m.type === 'linear' ? I.gradient : I.radial, m.name, S.maskId === m.id, () => { S.maskId = m.id; build(); }, m.on ? '' : ' muted'));
+  const upd = () => { remember(it); changed(); };
   const add = (type: Mask['type'], icon: string, label: string) => ib(icon, label, () => {
     const m = newMask(type);
     it.masks.push(m);
     S.maskId = m.id;
-    remember(it); changed(); build();
-  }, { cls: 'mchip add' });
-  bar.append(add('linear', I.addGradient, 'Add gradient mask'), add('radial', I.addRadial, 'Add radial mask'));
+    upd(); build();
+  });
+  bar.append(h('div', { class: 'lhead' }, h('h3', {}, 'Layers'), h('span', { style: 'flex:1' }),
+    add('linear', I.addGradient, 'Add gradient mask'), add('radial', I.addRadial, 'Add radial mask')));
+  const list = h('div', { class: 'llist' });
+  const row = (icon: string, name: string, on: boolean, select: () => void, m?: Mask) => {
+    const r = h('div', { class: 'lrow' + (on ? ' on' : '') + (m && !m.on ? ' muted' : ''), role: 'button', tabindex: 0, onclick: select });
+    if (m) {
+      const grip = h('span', { class: 'grip', title: 'Drag to reorder', 'aria-label': 'Drag to reorder', html: I.grip });
+      grip.addEventListener('pointerdown', (e) => dragLayer(e, r, list, it, upd));
+      grip.addEventListener('click', (e) => e.stopPropagation());
+      r.append(grip);
+    } else r.append(h('span', { class: 'grip none' }));
+    r.append(h('span', { class: 'lic', html: icon }), h('span', { class: 'lname' }, name));
+    if (m) {
+      (r as any).__mask = m;
+      const eye = ib(m.on ? I.eye : I.eyeOff, m.on ? 'Hide layer' : 'Show layer', (e) => { e.stopPropagation(); m.on = !m.on; upd(); build(); }, { cls: 'flat' });
+      r.append(eye);
+    }
+    return r;
+  };
+  for (const m of [...it.masks].reverse()) list.append(row(m.type === 'linear' ? I.gradient : I.radial, m.name, S.maskId === m.id, () => { S.maskId = m.id; build(); }, m));
+  list.append(row(I.base, 'Base', !S.maskId, () => { S.maskId = null; build(); }));
+  bar.append(list);
+}
+
+/** Pointer drag on a layer's grip: the row follows the finger and the stack reorders live. */
+function dragLayer(e: PointerEvent, r: HTMLElement, list: HTMLElement, it: Item, upd: () => void) {
+  e.preventDefault(); e.stopPropagation();
+  const id = e.pointerId;
+  r.classList.add('drag');
+  const move = (ev: PointerEvent) => {
+    if (ev.pointerId !== id) return;
+    ev.preventDefault();
+    const rows = [...list.querySelectorAll<HTMLElement>('.lrow')].filter((x) => x !== r && (x as any).__mask);
+    let before: HTMLElement | null = null;
+    for (const x of rows) { const b = x.getBoundingClientRect(); if (ev.clientY < b.top + b.height / 2) { before = x; break; } }
+    const base = list.lastElementChild as HTMLElement;
+    list.insertBefore(r, before ?? base);
+  };
+  const up = (ev: PointerEvent) => {
+    if (ev.pointerId !== id) return;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    r.classList.remove('drag');
+    const order = [...list.querySelectorAll<HTMLElement>('.lrow')].map((x) => (x as any).__mask as Mask | undefined).filter(Boolean) as Mask[];
+    const next = order.reverse();
+    if (next.some((m, i) => m !== it.masks[i])) { it.masks = next; upd(); }
+    build();
+  };
+  window.addEventListener('pointermove', move, { passive: false });
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
 }
 
 let delArmed = 0;
@@ -676,7 +726,6 @@ function pMask(m: Mask) {
   });
   s.append(h('div', { class: 'btnrow' },
     ib(I.invert, 'Invert mask', () => { m.invert = !m.invert; upd(); build(); }, { cls: m.invert ? 'on' : '' }),
-    ib(m.on ? I.eye : I.eyeOff, m.on ? 'Hide mask' : 'Show mask', () => { m.on = !m.on; upd(); build(); }, { cls: m.on ? '' : 'on' }),
     del));
   hint(s, 'The Light and Color tools below now change only this mask.');
 }
