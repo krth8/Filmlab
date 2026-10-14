@@ -5,7 +5,7 @@ import { S, emit, on, restore, select } from './state';
 import * as store from './store';
 import { keepFiles, loadSession, lockedDirs, pruneFiles, reopen, saveSession, unlock, type Session } from './session';
 import { $, h, isPhone, toast } from './ui/dom';
-import { buildReel, refresh, setAddHandler } from './ui/reel';
+import { buildReel, refresh, setAddHandler, setRemoveHandler } from './ui/reel';
 import { build } from './ui/panel';
 import { draw } from './ui/stage';
 import { openExport } from './ui/exportSheet';
@@ -132,6 +132,19 @@ document.addEventListener('pointerdown', (e) => { if (!menu.hidden && !menu.cont
 $('#openBtn').onclick = (e) => showMenu(e.currentTarget as HTMLElement);
 $('#exportBtn').onclick = openExport;
 setAddHandler(() => showMenu($('#openBtn')));
+setRemoveHandler((it) => {
+  const i = S.items.indexOf(it);
+  if (i < 0) return;
+  if (S.items.length === 1) { clearAll(); toast(`Removed ${it.name}`); return; }
+  S.items.splice(i, 1);
+  it.thumb?.close();
+  buildReel();
+  select(Math.min(i, S.items.length - 1));
+  updateTop();
+  saveSession();
+  pruneFiles();
+  toast(`Removed ${it.name} from the selection`);
+});
 
 $('#emptyFolder').hidden = !(canPickDir || canFolderInput);
 $('#emptyFolder').onclick = openFolder;

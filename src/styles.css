@@ -91,12 +91,15 @@ body.dragging .dropzone { display: flex; position: fixed; inset: 12px; z-index: 
 /* filmstrip */
 .strip { grid-area: strip; min-width: 0; }
 body:not(.has-items) .strip, body:not(.has-items) .toolbar { visibility: hidden; }
-.reel { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; min-height: 84px; align-items: center; padding: 6px 2px; }
+.reel { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; min-height: 88px; align-items: center; padding: 8px 8px 6px 2px; }
 .frame { flex: none; position: relative; border: 0; background: none; padding: 0; display: flex; align-items: center; border-radius: 6px; }
 .frame canvas { display: block; height: 72px; width: auto; max-width: 140px; min-width: 40px; border-radius: 6px; outline: 2px solid transparent; outline-offset: 2px; background: var(--raise); opacity: .78; transition: opacity .15s; }
 .frame.on canvas { outline-color: var(--accent); opacity: 1; }
 .frame.loading canvas { animation: pulse 1.2s ease-in-out infinite; width: 108px; }
 @keyframes pulse { 50% { background: #2a2520; } }
+.frame .del { position: absolute; right: -6px; top: -6px; width: 24px; height: 24px; border-radius: 50%; background: var(--fg); color: var(--bg); display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px #000a; z-index: 1; }
+.frame .del svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
+.frame.on .ov { right: auto; left: 5px; }
 .frame .ov { position: absolute; right: 5px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--ovr); box-shadow: 0 0 0 2px #0008; }
 .frame .vid { position: absolute; left: 5px; bottom: 5px; font: 500 10px var(--mono); background: #000b; padding: 1px 5px; border-radius: 3px; }
 .frame .vid.t { color: var(--accent); }
@@ -129,7 +132,11 @@ body:not(.has-items) .strip, body:not(.has-items) .toolbar { visibility: hidden;
 .sec h3 em { font-style: normal; font-family: var(--mono); letter-spacing: 0; text-transform: none; color: var(--faint); font-weight: 400; }
 .hint { margin: 0; font-size: 12px; color: var(--faint); line-height: 1.45; }
 
-.row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; }
+.row { display: grid; grid-template-columns: 1fr auto auto; gap: 2px 6px; align-items: center; }
+.rst { border: 0; background: none; padding: 0; width: 26px; height: 22px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); border-radius: 6px; visibility: hidden; }
+.rst.on { visibility: visible; }
+.rst svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rst:active { background: var(--raise); color: var(--fg); }
 .row label { font-size: 13px; display: flex; align-items: center; gap: 6px; user-select: none; -webkit-user-select: none; }
 .row label .d { width: 6px; height: 6px; border-radius: 50%; background: var(--ovr); visibility: hidden; }
 .row.ovr label .d { visibility: visible; }
@@ -237,7 +244,7 @@ input[type=text] { background: var(--raise); border: 1px solid var(--line); bord
   .frame canvas { height: 52px; max-width: 92px; }
   .frame .vid { font-size: 9px; }
   .frame.add { width: 52px; height: 52px; font-size: 10px; }
-  .reel { min-height: 62px; padding: 4px 2px; }
+  .reel { min-height: 68px; padding: 8px 8px 6px 2px; }
   .navbtn { width: 34px; height: 54px; font-size: 26px; }
   .navbtn.prev { left: 4px; } .navbtn.next { right: 4px; }
   .stagebar { left: 8px; right: 8px; bottom: 8px; }

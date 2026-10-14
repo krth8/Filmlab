@@ -110,7 +110,12 @@ function setFill(inp: HTMLInputElement) {
   inp.style.setProperty('--b', Math.max(z, p(v)) + '%');
 }
 
-interface SliderOpts { key: Key; label: string; min: number; max: number; step?: number; unit?: string; get?: () => number; set?: (v: number) => void }
+interface SliderOpts {
+  key: Key; label: string; min: number; max: number; step?: number; unit?: string;
+  /** Custom value accessors (for values inside an object, e.g. a look's strength); `def` is their reset value. */
+  get?: () => number; set?: (v: number) => void; def?: number;
+}
+const RESET_ICON = '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v5h5"/></svg>';
 let sid = 0;
 function slider(parent: HTMLElement, o: SliderOpts) {
   const step = o.step ?? 1, unit = o.unit ?? '';
@@ -120,7 +125,19 @@ function slider(parent: HTMLElement, o: SliderOpts) {
   const inp = h('input', { type: 'range', id, min: o.min, max: o.max, step, value: val }) as HTMLInputElement;
   inp.value = String(val);
   const label = h('label', { for: id, title: 'Double-tap to reset' }, h('i', { class: 'd' }), o.label);
-  const row = h('div', { class: 'row' }, label, out, inp);
+  const rst = h('button', { class: 'rst', 'aria-label': `Reset ${o.label}`, title: 'Reset', html: RESET_ICON }) as HTMLButtonElement;
+  const row = h('div', { class: 'row' }, label, out, rst, inp);
+  // Changed from its reset value? In "this item" scope that means the item has its own value.
+  const dirty = () => {
+    if (o.get) return Math.abs(o.get() - (o.def ?? 0)) > 1e-9;
+    if (S.scope === 'item') return o.key in (curItem()?.override ?? {});
+    return JSON.stringify(S.G[o.key]) !== JSON.stringify(DEF[o.key]);
+  };
+  const reset = () => {
+    if (o.get && o.set) o.set(o.def ?? 0); else resetKey(o.key);
+    build();
+  };
+  rst.onclick = reset;
   const note = () => {
     const ov = curItem()?.override ?? {};
     const own = S.scope === 'item' && o.key in ov;
@@ -128,6 +145,7 @@ function slider(parent: HTMLElement, o: SliderOpts) {
     let sm = row.querySelector('small');
     const n = overrideCount(o.key);
     const txt = own && NUM[o.key] && !o.get ? `${fmt(ov[o.key] as number, step, unit)} relative to all` : own ? 'Own value for this item' : S.scope === 'all' && n ? `${n} with own adjustment on top` : '';
+    rst.classList.toggle('on', dirty());
     if (!txt) { sm?.remove(); return; }
     if (!sm) { sm = h('small'); row.append(sm); }
     sm.textContent = txt;
@@ -142,7 +160,7 @@ function slider(parent: HTMLElement, o: SliderOpts) {
     note();
   };
   let last = 0;
-  label.onpointerup = () => { const t = Date.now(); if (t - last < 350) { resetKey(o.key); build(); } last = t; };
+  label.onpointerup = () => { const t = Date.now(); if (t - last < 350) reset(); last = t; };
   knobDrag(row, inp);
   parent.append(row);
   return row;
@@ -287,14 +305,14 @@ function pLooks() {
   centerOn(g);
   const fd = FMAP[f.id];
   if (fd?.v) {
-    slider(s, { key: 'filter', label: 'Strength', min: 0, max: 100, get: () => getV('filter').k, set: (v) => setV('filter', { ...getV('filter'), k: v }) });
+    slider(s, { key: 'filter', label: 'Strength', min: 0, max: 100, get: () => getV('filter').k, set: (v) => setV('filter', { ...getV('filter'), k: v }), def: 100 });
     s.append(h('button', { class: 'disclose' + (filterDetails ? ' open' : ''), onclick: () => { filterDetails = !filterDetails; build(); } }, filterDetails ? 'Hide details' : 'Fine-tune look'));
     if (filterDetails) {
       for (const [k, lab, mn, mx] of FSLIDERS) {
         if (fd.mono && (k === 'sat' || k === 'warm')) continue;
         slider(s, {
           key: 'filter', label: lab, min: mn, max: mx, unit: k === 'sh' || k === 'hh' ? '°' : '',
-          get: () => { const fv = getV('filter'); return fv.v?.[k] ?? fd.v![k]; },
+          get: () => { const fv = getV('filter'); return fv.v?.[k] ?? fd.v![k]; }, def: fd.v![k],
           set: (v) => { const fv = clone(getV('filter')); fv.v = { ...(fv.v || {}), [k]: v }; setV('filter', fv); },
         });
       }
@@ -320,7 +338,7 @@ function pLooks() {
     saveLuts(); build();
   };
   lp.append(file, h('button', { class: 'pill add', onclick: () => file.click() }, '+ Import'));
-  if (lut.id && lutById(lut.id)) slider(l, { key: 'lut', label: 'Strength', min: 0, max: 100, get: () => getV('lut').k, set: (v) => setV('lut', { ...getV('lut'), k: v }) });
+  if (lut.id && lutById(lut.id)) slider(l, { key: 'lut', label: 'Strength', min: 0, max: 100, def: 100, get: () => getV('lut').k, set: (v) => setV('lut', { ...getV('lut'), k: v }) });
 }
 
 /* ---------- Light ---------- */
@@ -409,7 +427,7 @@ function pColor() {
   for (const [k, label, min, max, unit] of [['h', 'Hue', -60, 60, '°'], ['s', 'Saturation', -100, 100, ''], ['l', 'Luminance', -100, 100, '']] as const) {
     slider(s2, {
       key: 'hsl', label, min, max, unit,
-      get: () => getV('hsl')[band][k],
+      get: () => getV('hsl')[band][k], def: 0,
       set: (v) => {
         const a = clone(getV('hsl'));
         a[band][k] = v;

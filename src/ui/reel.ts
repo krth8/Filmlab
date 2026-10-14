@@ -22,6 +22,8 @@ const visible = new Set<Item>();
 let raf = 0;
 let onAdd: () => void = () => {};
 export const setAddHandler = (fn: () => void) => (onAdd = fn);
+let onRemove: (it: Item) => void = () => {};
+export const setRemoveHandler = (fn: (it: Item) => void) => (onRemove = fn);
 
 const io = new IntersectionObserver((entries) => {
   for (const e of entries) {
@@ -45,7 +47,14 @@ function flush() {
 }
 
 function badges(it: Item, fr: HTMLElement) {
-  fr.querySelectorAll('.ov,.vid,.err').forEach((n) => n.remove());
+  fr.querySelectorAll('.ov,.vid,.err,.del').forEach((n) => n.remove());
+  // The selected item gets a remove button. It only takes the item out of this selection.
+  if (it === curItem()) {
+    const del = h('span', { class: 'del', role: 'button', tabindex: 0, 'aria-label': `Remove ${it.name} from the selection`, title: 'Remove from selection',
+      html: '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>' });
+    del.addEventListener('click', (e) => { e.stopPropagation(); onRemove(it); });
+    fr.append(del);
+  }
   if (it.status === 'error') fr.append(h('span', { class: 'err', title: it.error || '' }, '!'));
   if (Object.keys(it.override).length) fr.append(h('span', { class: 'ov', title: 'Own adjustments' }));
   if (it.kind === 'video' && it.trim) fr.append(h('span', { class: 'vid' + (isTrimmed(it) ? ' t' : '') }, '▶ ' + fmtT(it.trim.out - it.trim.in, 0)));
@@ -86,7 +95,7 @@ export function refresh(it?: Item) {
 }
 
 on('select', () => {
-  frames.forEach((fr, it) => fr.classList.toggle('on', it === curItem()));
+  frames.forEach((fr, it) => { fr.classList.toggle('on', it === curItem()); badges(it, fr); });
   frames.get(curItem()!)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
 });
 // A global change touches every frame; an item-only change touches just that one.
