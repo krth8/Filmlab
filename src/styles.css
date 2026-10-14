@@ -97,10 +97,12 @@ body:not(.has-items) .strip, body:not(.has-items) .toolbar { visibility: hidden;
 .frame.on canvas { outline-color: var(--accent); opacity: 1; }
 .frame.loading canvas { animation: pulse 1.2s ease-in-out infinite; width: 108px; }
 @keyframes pulse { 50% { background: #2a2520; } }
-.frame .del { position: absolute; right: -6px; top: -6px; width: 24px; height: 24px; border-radius: 50%; background: var(--fg); color: var(--bg); display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px #000a; z-index: 1; }
-.frame .del svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
-.frame.on .ov { right: auto; left: 5px; }
-.frame .ov { position: absolute; right: 5px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--ovr); box-shadow: 0 0 0 2px #0008; }
+.frame .del { position: absolute; right: 4px; top: 4px; width: 28px; height: 28px; border-radius: 8px; background: #000b; color: var(--fg); display: none; align-items: center; justify-content: center; z-index: 1; transition: background .15s, transform .15s; }
+.frame .del svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.frame .del.armed { background: var(--warn); color: #fff; transform: scale(1.12); }
+@media (hover: hover) { .frame:hover .del { display: flex; } }
+@media (hover: none) { .frame.on .del { display: flex; } }
+.frame .ov { position: absolute; left: 5px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--ovr); box-shadow: 0 0 0 2px #0008; }
 .frame .vid { position: absolute; left: 5px; bottom: 5px; font: 500 10px var(--mono); background: #000b; padding: 1px 5px; border-radius: 3px; }
 .frame .vid.t { color: var(--accent); }
 .frame .err { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--warn); font: 700 22px var(--mono); }

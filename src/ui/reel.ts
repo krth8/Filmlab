@@ -23,6 +23,7 @@ let raf = 0;
 let onAdd: () => void = () => {};
 export const setAddHandler = (fn: () => void) => (onAdd = fn);
 let onRemove: (it: Item) => void = () => {};
+const TRASH = '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>';
 export const setRemoveHandler = (fn: (it: Item) => void) => (onRemove = fn);
 
 const io = new IntersectionObserver((entries) => {
@@ -48,13 +49,18 @@ function flush() {
 
 function badges(it: Item, fr: HTMLElement) {
   fr.querySelectorAll('.ov,.vid,.err,.del').forEach((n) => n.remove());
-  // The selected item gets a remove button. It only takes the item out of this selection.
-  if (it === curItem()) {
-    const del = h('span', { class: 'del', role: 'button', tabindex: 0, 'aria-label': `Remove ${it.name} from the selection`, title: 'Remove from selection',
-      html: '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>' });
-    del.addEventListener('click', (e) => { e.stopPropagation(); onRemove(it); });
-    fr.append(del);
-  }
+  // Trash button: first tap arms it (highlighted), the second removes the item from this selection.
+  // The file itself is never touched. Phones show it on the selected item, desktops on hover.
+  const del = h('span', { class: 'del', role: 'button', tabindex: 0, 'aria-label': `Remove ${it.name} from the selection`, title: 'Remove from selection', html: TRASH });
+  let armed = 0;
+  del.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (armed) { clearTimeout(armed); onRemove(it); return; }
+    del.classList.add('armed');
+    del.title = 'Tap again to remove';
+    armed = window.setTimeout(() => { armed = 0; del.classList.remove('armed'); del.title = 'Remove from selection'; }, 3000);
+  });
+  fr.append(del);
   if (it.status === 'error') fr.append(h('span', { class: 'err', title: it.error || '' }, '!'));
   if (Object.keys(it.override).length) fr.append(h('span', { class: 'ov', title: 'Own adjustments' }));
   if (it.kind === 'video' && it.trim) fr.append(h('span', { class: 'vid' + (isTrimmed(it) ? ' t' : '') }, '▶ ' + fmtT(it.trim.out - it.trim.in, 0)));
