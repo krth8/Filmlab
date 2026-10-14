@@ -14,7 +14,7 @@ import { currentTime, pick, seek, trimChanged } from './stage';
 const body = $('#body');
 const panel = $('#panel');
 const app = $('#app');
-const TITLES: Record<Tab, string> = { looks: 'Looks', light: 'Lys', color: 'Farge', curves: 'Kurver', fx: 'Effekter', trim: 'Trim' };
+const TITLES: Record<Tab, string> = { looks: 'Looks', light: 'Light', color: 'Color', curves: 'Curves', fx: 'Effects', trim: 'Trim' };
 
 /* ---------- tabs, scope and the phone drawer ---------- */
 function syncChrome() {
@@ -27,7 +27,7 @@ function syncChrome() {
   });
   $('#sheetTitle').textContent = TITLES[S.tab];
   document.querySelectorAll<HTMLButtonElement>('.seg button').forEach((b) => b.classList.toggle('on', b.dataset.scope === S.scope));
-  $('#scopeItem').textContent = it ? 'Bare ' + it.name.replace(/\.[^.]+$/, '') : 'Bare dette';
+  $('#scopeItem').textContent = it ? 'Only ' + it.name.replace(/\.[^.]+$/, '') : 'This item only';
   $('.scope').hidden = S.tab === 'trim';
   panel.classList.toggle('scope-item', S.scope === 'item');
   panel.classList.toggle('open', S.sheetOpen);
@@ -45,21 +45,21 @@ function scopeNote() {
   const own = Object.keys(it.override) as Key[];
   if (S.scope === 'all') {
     const n = S.items.filter((x) => Object.keys(x.override).length).length;
-    note.append(h('span', {}, `Gjelder alle ${S.items.length}${n ? ` · ${n} har egen justering` : ''}`));
+    note.append(h('span', {}, `Applies to all ${S.items.length}${n ? ` · ${n} with own adjustments` : ''}`));
   } else {
-    note.append(h('span', { class: 'ovr-txt' }, own.length ? own.map((k) => LABELS[k]).join(', ') : 'Ingen egne endringer ennå'));
+    note.append(h('span', { class: 'ovr-txt' }, own.length ? own.map((k) => LABELS[k]).join(', ') : 'No own adjustments yet'));
   }
   note.append(h('span', { class: 'resets' },
-    h('button', { class: 'btn small ghost', disabled: !own.length, title: 'Fjern de egne justeringene på dette bildet', onclick: () => {
-      it.override = {}; remember(it); changed(); refresh(it); build(); toast('Bildet følger alle-innstillingene igjen');
-    } }, 'Nullstill valgt'),
+    h('button', { class: 'btn small ghost', disabled: !own.length, title: 'Remove this item\'s own adjustments', onclick: () => {
+      it.override = {}; remember(it); changed(); refresh(it); build(); toast('This item follows the global settings again');
+    } }, 'Reset selected'),
     resetAllBtn()));
 }
 
 /** Two taps: the first arms the button, the second resets everything. */
 let armed = 0;
 function resetAllBtn() {
-  const b = h('button', { class: 'btn small ghost' + (armed ? ' danger' : '') }, armed ? 'Trykk igjen' : 'Nullstill alt') as HTMLButtonElement;
+  const b = h('button', { class: 'btn small ghost' + (armed ? ' danger' : '') }, armed ? 'Tap again' : 'Reset all') as HTMLButtonElement;
   b.onclick = () => {
     if (!armed) {
       armed = window.setTimeout(() => { armed = 0; scopeNote(); }, 3000);
@@ -70,7 +70,7 @@ function resetAllBtn() {
     S.G = clone(DEF);
     for (const x of S.items) { x.override = {}; remember(x); }
     changed(); refresh(); build();
-    toast('Alle justeringer er nullstilt');
+    toast('All adjustments reset');
   };
   return b;
 }
@@ -116,7 +116,7 @@ function slider(parent: HTMLElement, o: SliderOpts) {
   const out = h('output', {}, fmt(val, step, unit));
   const inp = h('input', { type: 'range', id, min: o.min, max: o.max, step, value: val }) as HTMLInputElement;
   inp.value = String(val);
-  const label = h('label', { for: id, title: 'Dobbelttrykk for å nullstille' }, h('i', { class: 'd' }), o.label);
+  const label = h('label', { for: id, title: 'Double-tap to reset' }, h('i', { class: 'd' }), o.label);
   const row = h('div', { class: 'row' }, label, out, inp);
   const note = () => {
     const ov = curItem()?.override ?? {};
@@ -124,7 +124,7 @@ function slider(parent: HTMLElement, o: SliderOpts) {
     row.classList.toggle('ovr', own);
     let sm = row.querySelector('small');
     const n = overrideCount(o.key);
-    const txt = own && NUM[o.key] && !o.get ? `${fmt(ov[o.key] as number, step, unit)} i forhold til alle` : own ? 'Egen verdi for dette bildet' : S.scope === 'all' && n ? `${n} har egen justering i tillegg` : '';
+    const txt = own && NUM[o.key] && !o.get ? `${fmt(ov[o.key] as number, step, unit)} relative to all` : own ? 'Own value for this item' : S.scope === 'all' && n ? `${n} with own adjustment on top` : '';
     if (!txt) { sm?.remove(); return; }
     if (!sm) { sm = h('small'); row.append(sm); }
     sm.textContent = txt;
@@ -212,7 +212,7 @@ function lookTile(name: string, P: () => Params, on: boolean, click: () => void,
   tiles.push({ c, P });
   paintTilesSoon(0);
   if (!remove) return b;
-  return h('div', { class: 'lookwrap' }, b, h('button', { class: 'x', title: 'Slett', onclick: remove }, '×'));
+  return h('div', { class: 'lookwrap' }, b, h('button', { class: 'x', title: 'Delete', onclick: remove }, '×'));
 }
 
 /** ‹ Name › control: cycles through options in place instead of opening a native picker. */
@@ -222,10 +222,10 @@ function cycler(opts: { id: string; name: string; group?: string }[], value: str
   const cur = opts[i];
   const mid = h('div', { class: 'cyc-mid' },
     h('b', {}, cur ? cur.name : fallback),
-    h('small', {}, cur ? `${cur.group ? cur.group + ' · ' : ''}${i + 1} / ${opts.length}` : `${opts.length} valg`));
+    h('small', {}, cur ? `${cur.group ? cur.group + ' · ' : ''}${i + 1} / ${opts.length}` : `${opts.length} options`));
   const el = h('div', { class: 'cycler' },
-    h('button', { class: 'cyc-btn', 'aria-label': 'Forrige', onclick: () => go(-1) }, '‹'), mid,
-    h('button', { class: 'cyc-btn', 'aria-label': 'Neste', onclick: () => go(1) }, '›'));
+    h('button', { class: 'cyc-btn', 'aria-label': 'Previous', onclick: () => go(-1) }, '‹'), mid,
+    h('button', { class: 'cyc-btn', 'aria-label': 'Next', onclick: () => go(1) }, '›'));
   // Swipe sideways on the name to cycle too.
   let x0: number | null = null;
   mid.onpointerdown = (e) => { x0 = e.clientX; mid.setPointerCapture(e.pointerId); };
@@ -245,16 +245,16 @@ let filterDetails = false;
 let presetId = '';
 function pLooks() {
   // Presets: the user's own saved setups
-  const ps = sec('Presets', 'dine egne');
+  const ps = sec('Presets', 'your own');
   const usePreset = (id: string) => {
     const L = S.looks.find((x) => x.id === id);
     if (!L) return;
     presetId = id;
     applyLook(applyPresetTo(baseParams(), L.params));
-    toast(`«${L.name}» brukt`);
+    toast(`Applied “${L.name}”`);
   };
   if (S.looks.length) {
-    ps.append(cycler(S.looks.map((x) => ({ id: x.id, name: x.name })), presetId, usePreset, 'Velg preset'));
+    ps.append(cycler(S.looks.map((x) => ({ id: x.id, name: x.name })), presetId, usePreset, 'Choose a preset'));
     const pg = h('div', { class: 'looks strip-row' });
     for (const L of S.looks) {
       pg.append(lookTile(L.name, () => applyPresetTo(baseParams(), L.params), L.id === presetId, () => usePreset(L.id),
@@ -262,17 +262,17 @@ function pLooks() {
     }
     ps.append(pg);
     centerOn(pg);
-  } else hint(ps, 'Ingen presets ennå. Sett opp look, lys, farge og effekter som du vil ha dem, og lagre oppsettet her.');
-  const name = h('input', { type: 'text', id: 'lookName', placeholder: 'Navn på preset', maxlength: 40 }) as HTMLInputElement;
+  } else hint(ps, 'No presets yet. Set up the look, light, color and effects the way you like, then save the setup here.');
+  const name = h('input', { type: 'text', id: 'lookName', placeholder: 'Preset name', maxlength: 40 }) as HTMLInputElement;
   const save = () => {
     const n = name.value.trim() || `Preset ${S.looks.length + 1}`;
     const id = Date.now().toString(36);
     S.looks.push({ id, name: n, params: clone(baseParams()) });
     presetId = id;
-    saveLooks(); build(); toast(`Lagret «${n}»`);
+    saveLooks(); build(); toast(`Saved “${n}”`);
   };
   name.onkeydown = (e) => { if (e.key === 'Enter') save(); };
-  ps.append(h('div', { class: 'inline' }, name, h('button', { class: 'btn small', onclick: save }, 'Lagre')));
+  ps.append(h('div', { class: 'inline' }, name, h('button', { class: 'btn small', onclick: save }, 'Save')));
 
   const f = getV('filter');
   const s = sec('Look', 'filter');
@@ -284,8 +284,8 @@ function pLooks() {
   centerOn(g);
   const fd = FMAP[f.id];
   if (fd?.v) {
-    slider(s, { key: 'filter', label: 'Styrke', min: 0, max: 100, get: () => getV('filter').k, set: (v) => setV('filter', { ...getV('filter'), k: v }) });
-    s.append(h('button', { class: 'disclose' + (filterDetails ? ' open' : ''), onclick: () => { filterDetails = !filterDetails; build(); } }, filterDetails ? 'Skjul detaljer' : 'Finjuster look'));
+    slider(s, { key: 'filter', label: 'Strength', min: 0, max: 100, get: () => getV('filter').k, set: (v) => setV('filter', { ...getV('filter'), k: v }) });
+    s.append(h('button', { class: 'disclose' + (filterDetails ? ' open' : ''), onclick: () => { filterDetails = !filterDetails; build(); } }, filterDetails ? 'Hide details' : 'Fine-tune look'));
     if (filterDetails) {
       for (const [k, lab, mn, mx] of FSLIDERS) {
         if (fd.mono && (k === 'sat' || k === 'warm')) continue;
@@ -302,35 +302,39 @@ function pLooks() {
   const l = sec('LUT', '.cube 3D');
   const lut = getV('lut');
   const lp = pills(l);
-  lp.append(h('button', { class: 'pill' + (!lut.id ? ' on' : ''), onclick: () => { setV('lut', { id: null, k: 100 }); build(); } }, 'Ingen'));
+  lp.append(h('button', { class: 'pill' + (!lut.id ? ' on' : ''), onclick: () => { setV('lut', { id: null, k: 100 }); build(); } }, 'None'));
   for (const L of S.luts) {
     lp.append(h('span', { class: 'pillwrap' },
       h('button', { class: 'pill' + (lut.id === L.id ? ' on' : ''), onclick: () => { setV('lut', { id: L.id, k: lut.k || 100 }); build(); } }, L.name),
-      h('button', { class: 'x', title: 'Slett LUT', onclick: () => { S.luts = S.luts.filter((x) => x !== L); saveLuts(); if (S.G.lut.id === L.id) S.G.lut = { id: null, k: 100 }; changed(); build(); } }, '×')));
+      h('button', { class: 'x', title: 'Delete LUT', onclick: () => { S.luts = S.luts.filter((x) => x !== L); saveLuts(); if (S.G.lut.id === L.id) S.G.lut = { id: null, k: 100 }; changed(); build(); } }, '×')));
   }
   const file = h('input', { type: 'file', accept: '.cube', hidden: true, multiple: true }) as HTMLInputElement;
   file.onchange = async () => {
     for (const fl of file.files || []) {
-      try { const L = parseCube(await fl.text(), fl.name); S.luts.push(L); setV('lut', { id: L.id, k: 100 }); toast(`La til ${L.name}`); }
+      try { const L = parseCube(await fl.text(), fl.name); S.luts.push(L); setV('lut', { id: L.id, k: 100 }); toast(`Added ${L.name}`); }
       catch (e) { toast(`${fl.name}: ${(e as Error).message}`); }
     }
     saveLuts(); build();
   };
-  lp.append(file, h('button', { class: 'pill add', onclick: () => file.click() }, '+ Importer'));
-  if (lut.id && lutById(lut.id)) slider(l, { key: 'lut', label: 'Styrke', min: 0, max: 100, get: () => getV('lut').k, set: (v) => setV('lut', { ...getV('lut'), k: v }) });
+  lp.append(file, h('button', { class: 'pill add', onclick: () => file.click() }, '+ Import'));
+  if (lut.id && lutById(lut.id)) slider(l, { key: 'lut', label: 'Strength', min: 0, max: 100, get: () => getV('lut').k, set: (v) => setV('lut', { ...getV('lut'), k: v }) });
 }
 
 /* ---------- Light ---------- */
 function pLight() {
-  const s = sec('Lys');
+  const s = sec('Light');
   const defs: [Key, string, number, number, number?, string?][] = [
-    ['exposure', 'Eksponering', -3, 3, 0.05, ' EV'], ['contrast', 'Kontrast', -100, 100], ['highlights', 'Høylys', -100, 100],
-    ['shadows', 'Skygger', -100, 100], ['whites', 'Hvitt', -100, 100], ['blacks', 'Svart', -100, 100], ['fade', 'Fade', 0, 100],
+    ['exposure', 'Exposure', -3, 3, 0.05, ' EV'], ['contrast', 'Contrast', -100, 100], ['highlights', 'Highlights', -100, 100],
+    ['shadows', 'Shadows', -100, 100], ['whites', 'Whites', -100, 100], ['blacks', 'Blacks', -100, 100], ['fade', 'Fade', 0, 100],
   ];
   for (const [key, label, min, max, step, unit] of defs) slider(s, { key, label, min, max, step, unit });
-  const b = sec('Jevn ut serien');
-  hint(b, 'Måler lysstyrken i hvert bilde og gir de som avviker en egen eksponering, slik at serien blir jevn.');
-  b.append(h('button', { class: 'btn small', onclick: autoMatch }, 'Auto-match eksponering'));
+  const d = sec('Presence');
+  slider(d, { key: 'texture', label: 'Texture', min: -100, max: 100 });
+  slider(d, { key: 'clarity', label: 'Clarity', min: -100, max: 100 });
+  slider(d, { key: 'dehaze', label: 'Dehaze', min: -100, max: 100 });
+  const b = sec('Even out the series');
+  hint(b, 'Measures the brightness of every item and gives the outliers their own exposure, so the series looks even.');
+  b.append(h('button', { class: 'btn small', onclick: autoMatch }, 'Auto-match exposure'));
 }
 
 function autoMatch() {
@@ -347,19 +351,19 @@ function autoMatch() {
   changed();
   refresh();
   build();
-  toast(n ? `Justerte eksponeringen på ${n} elementer` : 'Serien var allerede jevnt eksponert');
+  toast(n ? `Adjusted exposure on ${n} items` : 'The series was already evenly exposed');
 }
 
 /* ---------- Colour ---------- */
 let band = 5;
 function neutralize([r, g, b]: [number, number, number]) {
   const R = Math.pow(r, 2.2), G = Math.max(1e-4, Math.pow(g, 2.2)), B = Math.pow(b, 2.2);
-  if (R < 1e-4 || B < 1e-4) { toast('Velg et lysere, nøytralt område'); return; }
+  if (R < 1e-4 || B < 1e-4) { toast('Pick a brighter, neutral area'); return; }
   const wb = wbNeutral(R, G, B);
   setV('temp', wb.temp);
   setV('tint', wb.tint);
   build();
-  toast('Hvitbalanse satt');
+  toast('White balance set');
 }
 function hueOf([r, g, b]: number[]) {
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
@@ -369,15 +373,15 @@ function hueOf([r, g, b]: number[]) {
 }
 
 function pColor() {
-  const s = sec('Hvitbalanse');
-  slider(s, { key: 'temp', label: 'Temperatur', min: -100, max: 100 });
+  const s = sec('White balance');
+  slider(s, { key: 'temp', label: 'Temperature', min: -100, max: 100 });
   slider(s, { key: 'tint', label: 'Tint', min: -100, max: 100 });
-  s.append(h('button', { class: 'btn small', onclick: () => { pick(neutralize); toast('Trykk på noe som skal være grått eller hvitt'); if (isPhone()) { S.sheetOpen = false; syncChrome(); } } }, 'Pipette: trykk på noe nøytralt'));
-  const m = sec('Metning');
-  slider(m, { key: 'saturation', label: 'Metning', min: -100, max: 100 });
+  s.append(h('button', { class: 'btn small', onclick: () => { pick(neutralize); toast('Tap something that should be grey or white'); if (isPhone()) { S.sheetOpen = false; syncChrome(); } } }, 'Eyedropper: tap something neutral'));
+  const m = sec('Saturation');
+  slider(m, { key: 'saturation', label: 'Saturation', min: -100, max: 100 });
   slider(m, { key: 'vibrance', label: 'Vibrance', min: -100, max: 100 });
 
-  const s2 = sec('Selektiv farge', '8 fargebånd');
+  const s2 = sec('Selective color', '8 bands');
   const hv = getV('hsl');
   const bands = h('div', { class: 'bands' });
   BANDS.forEach((B, k) => {
@@ -394,12 +398,12 @@ function pColor() {
         band = best;
         if (isPhone()) { S.sheetOpen = true; }
         build();
-        toast(`Valgte ${BANDS[best].n.toLowerCase()} fra bildet`);
+        toast(`Picked ${BANDS[best].n.toLowerCase()} from the image`);
       });
       if (isPhone()) { S.sheetOpen = false; syncChrome(); }
-      toast('Trykk på fargen i bildet');
-    } }, 'Pipette')));
-  for (const [k, label, min, max, unit] of [['h', 'Fargetone', -60, 60, '°'], ['s', 'Metning', -100, 100, ''], ['l', 'Lysstyrke', -100, 100, '']] as const) {
+      toast('Tap the color in the image');
+    } }, 'Eyedropper')));
+  for (const [k, label, min, max, unit] of [['h', 'Hue', -60, 60, '°'], ['s', 'Saturation', -100, 100, ''], ['l', 'Luminance', -100, 100, '']] as const) {
     slider(s2, {
       key: 'hsl', label, min, max, unit,
       get: () => getV('hsl')[band][k],
@@ -411,16 +415,16 @@ function pColor() {
       },
     });
   }
-  const s3 = sec('Fargeoverstyringer', 'legges oppå');
+  const s3 = sec('Color tweaks', 'added on top');
   const p = pills(s3);
   for (const [n, map] of Object.entries(HSL_PRESETS)) {
     p.append(h('button', { class: 'pill', onclick: () => {
       const a = clone(getV('hsl'));
       for (const [k, v] of Object.entries(map)) { const i = +k; a[i] = { h: a[i].h + v.h, s: a[i].s + v.s, l: a[i].l + v.l }; }
-      setV('hsl', a); build(); toast(n + ' lagt til');
+      setV('hsl', a); build(); toast(n + ' added');
     } }, n));
   }
-  p.append(h('button', { class: 'pill', onclick: () => { resetKey('hsl'); build(); } }, 'Nullstill farger'));
+  p.append(h('button', { class: 'pill', onclick: () => { resetKey('hsl'); build(); } }, 'Reset colors'));
 }
 
 /* ---------- Curves ---------- */
@@ -428,10 +432,10 @@ let curveCh: 'rgb' | 'r' | 'g' | 'b' = 'rgb';
 const CH_COL = { rgb: '#ece5d9', r: '#ff6a5a', g: '#6fd27c', b: '#6aa6ff' };
 
 function pCurves() {
-  const s = sec('RGB-kurver');
+  const s = sec('RGB curves');
   const cur = JSON.stringify(getV('curves'));
   const match = Object.keys(CURVES).find((n) => JSON.stringify(CURVES[n]) === cur) ?? '';
-  s.append(cycler(Object.keys(CURVES).map((n) => ({ id: n, name: n })), match, (n) => { setV('curves', clone(CURVES[n])); build(); }, 'Egen kurve'));
+  s.append(cycler(Object.keys(CURVES).map((n) => ({ id: n, name: n })), match, (n) => { setV('curves', clone(CURVES[n])); build(); }, 'Custom curve'));
   const ch = h('div', { class: 'chans' });
   for (const c of ['rgb', 'r', 'g', 'b'] as const) {
     ch.append(h('button', { 'data-c': c, class: c === curveCh ? 'on' : '', onclick: (e: Event) => {
@@ -443,8 +447,8 @@ function pCurves() {
   s.append(ch);
   const cv = h('canvas', { id: 'curve', width: 560, height: 560 }) as HTMLCanvasElement;
   s.append(cv);
-  hint(s, 'Trykk for å legge til punkt · dra for å flytte · dobbelttrykk for å fjerne.');
-  s.append(h('button', { class: 'btn small', onclick: () => { const c = clone(getV('curves')); c[curveCh] = LIN; setV('curves', c); drawCurve(); } }, 'Nullstill kanal'));
+  hint(s, 'Tap to add a point · drag to move · double-tap to remove.');
+  s.append(h('button', { class: 'btn small', onclick: () => { const c = clone(getV('curves')); c[curveCh] = LIN; setV('curves', c); drawCurve(); } }, 'Reset channel'));
   curveEvents(cv);
   drawCurve();
 }
@@ -500,25 +504,25 @@ function curveEvents(cv: HTMLCanvasElement) {
 
 /* ---------- Effects ---------- */
 function pFx() {
-  const v = sec('Vignett');
-  slider(v, { key: 'vignette', label: 'Mengde', min: -100, max: 100 });
-  slider(v, { key: 'vigSize', label: 'Størrelse', min: 0, max: 100 });
-  slider(v, { key: 'vigFeather', label: 'Mykhet', min: 0, max: 100 });
-  const g = sec('Korn');
-  slider(g, { key: 'grain', label: 'Mengde', min: 0, max: 100 });
-  slider(g, { key: 'grainSize', label: 'Størrelse', min: 1, max: 4, step: 0.1, unit: '×' });
+  const v = sec('Vignette');
+  slider(v, { key: 'vignette', label: 'Amount', min: -100, max: 100 });
+  slider(v, { key: 'vigSize', label: 'Size', min: 0, max: 100 });
+  slider(v, { key: 'vigFeather', label: 'Softness', min: 0, max: 100 });
+  const g = sec('Grain');
+  slider(g, { key: 'grain', label: 'Amount', min: 0, max: 100 });
+  slider(g, { key: 'grainSize', label: 'Size', min: 1, max: 4, step: 0.1, unit: '×' });
   const b = sec('Blur');
   const bm = pills(b);
-  for (const [k, n] of [['tilt', 'Tilt-shift'], ['radial', 'Radial'], ['full', 'Hele bildet']] as const) {
+  for (const [k, n] of [['tilt', 'Tilt-shift'], ['radial', 'Radial'], ['full', 'Whole image']] as const) {
     bm.append(h('button', { class: 'pill' + (getV('blurMode') === k ? ' on' : ''), onclick: () => { setV('blurMode', k); build(); } }, n));
   }
-  slider(b, { key: 'blur', label: 'Mengde', min: 0, max: 100 });
-  const bl = sec('Bloom', 'flertrinns');
-  slider(bl, { key: 'bloom', label: 'Mengde', min: 0, max: 100 });
-  slider(bl, { key: 'bloomThr', label: 'Terskel', min: 30, max: 95 });
+  slider(b, { key: 'blur', label: 'Amount', min: 0, max: 100 });
+  const bl = sec('Bloom', 'multi-step');
+  slider(bl, { key: 'bloom', label: 'Amount', min: 0, max: 100 });
+  slider(bl, { key: 'bloomThr', label: 'Threshold', min: 30, max: 95 });
   slider(bl, { key: 'bloomRadius', label: 'Radius', min: 0, max: 100 });
-  const ha = sec('Halation', 'rød glød rundt høylys');
-  slider(ha, { key: 'halation', label: 'Mengde', min: 0, max: 100 });
+  const ha = sec('Halation', 'red glow around highlights');
+  slider(ha, { key: 'halation', label: 'Amount', min: 0, max: 100 });
 }
 
 /* ---------- Trim ---------- */
@@ -527,21 +531,21 @@ function pTrim() {
   const it = curItem();
   if (!it || it.kind !== 'video' || !it.trim) return;
   const tr = it.trim;
-  const s = sec('Trim', fmtT(it.duration) + ' totalt');
+  const s = sec('Trim', fmtT(it.duration) + ' total');
   const cv = h('canvas', { width: 640, height: 112 }) as HTMLCanvasElement;
   const shL = h('div', { class: 'shade' }), shR = h('div', { class: 'shade' }), win = h('div', { class: 'win' }), ph = h('div', { class: 'ph' });
   const tl = h('div', { class: 'trimtl', id: 'tl' }, cv, shL, shR, win, ph);
   const tIn = h('b'), tOut = h('b'), tLen = h('b');
-  s.append(tl, h('div', { class: 'tcrow' }, h('div', {}, h('span', {}, 'Start'), tIn), h('div', {}, h('span', {}, 'Slutt'), tOut), h('div', {}, h('span', {}, 'Lengde'), tLen)));
+  s.append(tl, h('div', { class: 'tcrow' }, h('div', {}, h('span', {}, 'Start'), tIn), h('div', {}, h('span', {}, 'End'), tOut), h('div', {}, h('span', {}, 'Length'), tLen)));
   const set = (edge: 'in' | 'out', v: number) => {
     if (edge === 'in') tr.in = clamp(v, 0, tr.out - 0.3); else tr.out = clamp(v, tr.in + 0.3, it.duration);
     layout(); trimChanged(it, edge); emit('trim');
   };
   s.append(h('div', { class: 'btnrow' },
-    h('button', { class: 'btn small', onclick: () => set('in', currentTime()) }, 'Sett start her'),
-    h('button', { class: 'btn small', onclick: () => set('out', currentTime()) }, 'Sett slutt her'),
-    h('button', { class: 'btn small ghost', onclick: () => { tr.in = 0; tr.out = it.duration; layout(); trimChanged(it, 'in'); emit('trim'); } }, 'Nullstill')));
-  hint(s, 'Dra i de gule håndtakene. Dra i midten for å flytte spillehodet.');
+    h('button', { class: 'btn small', onclick: () => set('in', currentTime()) }, 'Set start here'),
+    h('button', { class: 'btn small', onclick: () => set('out', currentTime()) }, 'Set end here'),
+    h('button', { class: 'btn small ghost', onclick: () => { tr.in = 0; tr.out = it.duration; layout(); trimChanged(it, 'in'); emit('trim'); } }, 'Reset')));
+  hint(s, 'Drag the yellow handles. Drag in the middle to move the playhead.');
 
   const pct = (v: number) => (v / it.duration) * 100 + '%';
   function layout() {
@@ -585,7 +589,7 @@ export function build() {
   if (S.tab === 'trim' && (!it || it.kind !== 'video')) S.tab = 'looks';
   body.replaceChildren();
   if (it) ({ looks: pLooks, light: pLight, color: pColor, curves: pCurves, fx: pFx, trim: pTrim })[S.tab]();
-  else body.append(h('p', { class: 'hint' }, 'Åpne bilder eller videoer for å begynne.'));
+  else body.append(h('p', { class: 'hint' }, 'Open photos or videos to begin.'));
   syncChrome();
 }
 

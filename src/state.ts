@@ -91,7 +91,7 @@ export async function restore() {
   if (edits) S.edits = edits;
   if (looks) S.looks = looks.map((l) => ({ ...l, params: { ...clone(DEF), ...l.params } }));
   if (luts) S.luts = luts;
-  if (ex) S.exportSettings = { ...DEFAULT_EXPORT, ...ex };
+  if (ex) S.exportSettings = { ...DEFAULT_EXPORT, ...ex, name: (ex.name ?? DEFAULT_EXPORT.name).replace(/\{navn\}/g, '{name}') };
 }
 export const saveLooks = () => store.set('looks', S.looks);
 export const saveLuts = () => store.set('luts', S.luts);

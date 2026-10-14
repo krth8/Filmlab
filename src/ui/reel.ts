@@ -47,7 +47,7 @@ function flush() {
 function badges(it: Item, fr: HTMLElement) {
   fr.querySelectorAll('.ov,.vid,.err').forEach((n) => n.remove());
   if (it.status === 'error') fr.append(h('span', { class: 'err', title: it.error || '' }, '!'));
-  if (Object.keys(it.override).length) fr.append(h('span', { class: 'ov', title: 'Egen justering' }));
+  if (Object.keys(it.override).length) fr.append(h('span', { class: 'ov', title: 'Own adjustments' }));
   if (it.kind === 'video' && it.trim) fr.append(h('span', { class: 'vid' + (isTrimmed(it) ? ' t' : '') }, '▶ ' + fmtT(it.trim.out - it.trim.in, 0)));
   fr.classList.toggle('loading', it.status === 'loading');
 }
@@ -71,7 +71,7 @@ export function buildReel() {
     io.observe(fr);
     dirty.add(it);
   });
-  reel.append(h('button', { class: 'frame add', onclick: () => onAdd() }, h('span', {}, '+'), 'Legg til'));
+  reel.append(h('button', { class: 'frame add', onclick: () => onAdd() }, h('span', {}, '+'), 'Add'));
   schedule();
 }
 

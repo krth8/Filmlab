@@ -29,8 +29,8 @@ function meanLuma(img: CanvasImageSource): number {
 }
 
 function decodeError(it: Item, e: unknown): string {
-  if (/\.(heic|heif)$/i.test(it.name)) return 'HEIC kan ikke leses i denne nettleseren. Bruk Safari, eller eksporter som JPEG fra Bilder.';
-  return (e as Error)?.message || 'Kunne ikke lese filen';
+  if (/\.(heic|heif)$/i.test(it.name)) return 'HEIC cannot be read in this browser. Use Safari, or export as JPEG from Photos.';
+  return (e as Error)?.message || 'Could not read the file';
 }
 
 /** Reads dimensions, a thumbnail and (for video) duration. Full-size decoding is done lazily. */
@@ -47,8 +47,8 @@ export async function loadItem(it: Item): Promise<void> {
       const input = new Input({ source: new BlobSource(it.file), formats: ALL_FORMATS });
       try {
         const track = await input.getPrimaryVideoTrack();
-        if (!track) throw new Error('Fant ingen videospor');
-        if (!(await track.canDecode())) throw new Error('Videoformatet kan ikke spilles av i denne nettleseren');
+        if (!track) throw new Error('No video track found');
+        if (!(await track.canDecode())) throw new Error('This video format cannot be played in this browser');
         it.duration = await input.computeDuration();
         it.width = track.displayWidth; it.height = track.displayHeight;
         it.trim ??= { in: 0, out: it.duration };
@@ -57,7 +57,7 @@ export async function loadItem(it: Item): Promise<void> {
         const sink = new CanvasSink(track, { width: tw, height: th, fit: 'fill' });
         const t0 = await track.getFirstTimestamp();
         const wc = await sink.getCanvas(t0 + Math.min(1, it.duration * 0.1));
-        if (!wc) throw new Error('Fant ingen bilder i videoen');
+        if (!wc) throw new Error('No frames found in the video');
         it.thumb = await createImageBitmap(wc.canvas);
       } finally {
         input.dispose();
@@ -94,7 +94,7 @@ async function viaImg(blob: Blob): Promise<ImageBitmap> {
 export async function decodeFull(it: Item): Promise<ImageBitmap> {
   const fresh = async () => {
     const h = handles.get(it.file);
-    if (!h) throw new Error('ingen mappe-tilgang');
+    if (!h) throw new Error('no folder access');
     const f = await h.getFile();
     handles.set(f, h);
     it.file = f;
@@ -111,8 +111,8 @@ export async function decodeFull(it: Item): Promise<ImageBitmap> {
     try { return await t(); } catch (e) { last = e; await pause(250); }
   }
   const e = last as Error;
-  if (e?.name === 'NotReadableError' || e?.name === 'NotFoundError') throw new Error('Filen kan ikke leses lenger. Åpne bildene på nytt og eksporter igjen.');
-  throw new Error(`Kunne ikke dekode bildet (${e?.name || 'feil'}). Telefonen kan ha gått tom for minne – prøv en mindre eksportstørrelse.`);
+  if (e?.name === 'NotReadableError' || e?.name === 'NotFoundError') throw new Error('The file can no longer be read. Open the photos again and export again.');
+  throw new Error(`Could not decode the image (${e?.name || 'error'}). The device may have run out of memory. Try a smaller export size.`);
 }
 
 /* Full previews (≤ 2048 px) are kept for a handful of items only. */
@@ -218,7 +218,7 @@ export function pickFiles(folder = false): Promise<Picked | null> {
     inp.onchange = () => {
       const files = [...(inp.files || [])].filter(kindOf).sort(byName);
       const rel = (files[0] as any)?.webkitRelativePath as string | undefined;
-      resolve(files.length ? { files, dir: null, name: rel ? rel.split('/')[0] : files.length === 1 ? files[0].name : `${files.length} filer` } : null);
+      resolve(files.length ? { files, dir: null, name: rel ? rel.split('/')[0] : files.length === 1 ? files[0].name : `${files.length} files` } : null);
     };
     inp.addEventListener('cancel', () => resolve(null));
     inp.click();
@@ -249,5 +249,5 @@ export async function fromDrop(dt: DataTransfer): Promise<Picked | null> {
     for (const e of entries) await read(e, 0);
   } else files.push(...[...dt.files].filter(kindOf));
   files.sort(byName);
-  return files.length ? { files, dir: null, name: name || `${files.length} filer` } : null;
+  return files.length ? { files, dir: null, name: name || `${files.length} files` } : null;
 }

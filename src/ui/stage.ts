@@ -67,7 +67,7 @@ async function ensureImage(it: Item) {
     draw();
   } catch {
     it.status = 'error';
-    it.error = 'Kunne ikke lese bildet';
+    it.error = 'Could not read the image';
     emit('items');
   }
 }
@@ -85,10 +85,10 @@ const ICON = {
 function syncButtons() {
   const playing = !!video && !video.paused;
   playBtn.innerHTML = playing ? ICON.pause : ICON.play;
-  playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Spill av');
+  playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
   const muted = !video || video.muted;
   muteBtn.innerHTML = muted ? ICON.muted : ICON.sound;
-  muteBtn.setAttribute('aria-label', muted ? 'Slå på lyd' : 'Slå av lyd');
+  muteBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
 }
 syncButtons();
 const tc = $('#stageTc');
@@ -117,7 +117,7 @@ function setupVideo(it: Item) {
   v.addEventListener('play', () => { syncButtons(); tick(); });
   v.addEventListener('pause', syncButtons);
   v.addEventListener('volumechange', syncButtons);
-  v.addEventListener('error', () => { it.status = 'error'; it.error = 'Videoen kan ikke spilles av i denne nettleseren'; emit('items'); });
+  v.addEventListener('error', () => { it.status = 'error'; it.error = 'This video cannot be played in this browser'; emit('items'); });
 }
 
 function tick() {
@@ -165,9 +165,9 @@ function updateChips() {
   msg.hidden = true;
   if (!it) return;
   if (S.showBefore) chips.append(h('span', { class: 'chip' }, 'Original'));
-  else if (Object.keys(it.override).length) chips.append(h('span', { class: 'chip o' }, 'Egen justering'));
-  if (it.status === 'error') { msg.hidden = false; msg.textContent = it.error || 'Kunne ikke lese filen'; }
-  else if (it.status === 'loading') { msg.hidden = false; msg.textContent = 'Leser…'; }
+  else if (Object.keys(it.override).length) chips.append(h('span', { class: 'chip o' }, 'Own adjustments'));
+  if (it.status === 'error') { msg.hidden = false; msg.textContent = it.error || 'Could not read the file'; }
+  else if (it.status === 'loading') { msg.hidden = false; msg.textContent = 'Loading…'; }
 }
 
 /* ---------- gestures: hold for original, swipe to navigate, pipette ---------- */
@@ -343,7 +343,7 @@ on('select', onSelect);
 on('items', onSelect);
 on('params', draw);
 new ResizeObserver(draw).observe(stage);
-view.addEventListener('webglcontextlost', () => toast('Grafikkminnet ble tømt. Last siden på nytt.'));
+view.addEventListener('webglcontextlost', () => toast('Graphics memory was lost. Reload the page.'));
 
 /** Called by the trim panel when handles move. */
 export function trimChanged(it: Item, edge: 'in' | 'out') {

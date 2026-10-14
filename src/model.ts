@@ -7,6 +7,7 @@ export type BlurMode = 'tilt' | 'radial' | 'full';
 export interface Params {
   exposure: number; contrast: number; highlights: number; shadows: number; whites: number; blacks: number;
   temp: number; tint: number; saturation: number; vibrance: number; fade: number;
+  texture: number; clarity: number; dehaze: number;
   curves: Curves; hsl: HslBand[];
   vignette: number; vigSize: number; vigFeather: number; grain: number; grainSize: number;
   blur: number; blurMode: BlurMode; bloom: number; bloomThr: number; bloomRadius: number; halation: number;
@@ -20,6 +21,7 @@ export const LIN: Pt[] = [[0, 0], [1, 1]];
 export const DEF: Params = {
   exposure: 0, contrast: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0,
   temp: 0, tint: 0, saturation: 0, vibrance: 0, fade: 0,
+  texture: 0, clarity: 0, dehaze: 0,
   curves: { rgb: LIN, r: LIN, g: LIN, b: LIN },
   hsl: Array.from({ length: 8 }, () => ({ h: 0, s: 0, l: 0 })),
   vignette: 0, vigSize: 50, vigFeather: 50, grain: 0, grainSize: 1.4,
@@ -33,15 +35,16 @@ export const DEF: Params = {
 export const NUM: Partial<Record<Key, [number, number]>> = {
   exposure: [-3, 3], contrast: [-100, 100], highlights: [-100, 100], shadows: [-100, 100], whites: [-100, 100], blacks: [-100, 100],
   temp: [-100, 100], tint: [-100, 100], saturation: [-100, 100], vibrance: [-100, 100], fade: [0, 100],
+  texture: [-100, 100], clarity: [-100, 100], dehaze: [-100, 100],
   vignette: [-100, 100], vigSize: [0, 100], vigFeather: [0, 100], grain: [0, 100], grainSize: [1, 4],
   blur: [0, 100], bloom: [0, 100], bloomThr: [30, 95], bloomRadius: [0, 100], halation: [0, 100],
 };
 
 export const LABELS: Record<Key, string> = {
-  exposure: 'Eksponering', contrast: 'Kontrast', highlights: 'Høylys', shadows: 'Skygger', whites: 'Hvitt', blacks: 'Svart',
-  temp: 'Temperatur', tint: 'Tint', saturation: 'Metning', vibrance: 'Vibrance', fade: 'Fade', curves: 'Kurver', hsl: 'Selektiv farge',
-  vignette: 'Vignett', vigSize: 'Vignett-størrelse', vigFeather: 'Vignett-mykhet', grain: 'Korn', grainSize: 'Kornstørrelse', blur: 'Blur', blurMode: 'Blur-type',
-  bloom: 'Bloom', bloomThr: 'Bloom-terskel', bloomRadius: 'Bloom-radius', halation: 'Halation', filter: 'Look', lut: 'LUT',
+  exposure: 'Exposure', contrast: 'Contrast', highlights: 'Highlights', shadows: 'Shadows', whites: 'Whites', blacks: 'Blacks',
+  temp: 'Temperature', tint: 'Tint', saturation: 'Saturation', vibrance: 'Vibrance', fade: 'Fade', texture: 'Texture', clarity: 'Clarity', dehaze: 'Dehaze', curves: 'Curves', hsl: 'Selective color',
+  vignette: 'Vignette', vigSize: 'Vignette size', vigFeather: 'Vignette softness', grain: 'Grain', grainSize: 'Grain size', blur: 'Blur', blurMode: 'Blur type',
+  bloom: 'Bloom', bloomThr: 'Bloom threshold', bloomRadius: 'Bloom radius', halation: 'Halation', filter: 'Look', lut: 'LUT',
 };
 
 export const clone = <T>(o: T): T => JSON.parse(JSON.stringify(o));

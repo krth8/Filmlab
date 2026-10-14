@@ -10,7 +10,7 @@ export function parseCube(text: string, name: string): CubeLut {
     if (!line || line.startsWith('#')) continue;
     const up = line.toUpperCase();
     if (up.startsWith('TITLE')) continue;
-    if (up.startsWith('LUT_1D_SIZE')) throw new Error('1D-LUT-er støttes ikke, bare 3D');
+    if (up.startsWith('LUT_1D_SIZE')) throw new Error('1D LUTs are not supported, only 3D');
     if (up.startsWith('LUT_3D_SIZE')) { size = parseInt(line.split(/\s+/)[1], 10); continue; }
     if (up.startsWith('DOMAIN_MIN')) { min = line.split(/\s+/).slice(1).map(Number); continue; }
     if (up.startsWith('DOMAIN_MAX')) { max = line.split(/\s+/).slice(1).map(Number); continue; }
@@ -18,7 +18,7 @@ export function parseCube(text: string, name: string): CubeLut {
     const parts = line.split(/\s+/);
     if (parts.length >= 3) vals.push(+parts[0], +parts[1], +parts[2]);
   }
-  if (!size || vals.length < size * size * size * 3) throw new Error('Ugyldig .cube-fil');
+  if (!size || vals.length < size * size * size * 3) throw new Error('Invalid .cube file');
   const data = new Float32Array(size * size * size * 4);
   for (let i = 0, j = 0; i < size * size * size; i++, j += 3) {
     data[i * 4] = (vals[j] - min[0]) / (max[0] - min[0]);

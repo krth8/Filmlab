@@ -61,7 +61,7 @@ body:not(.has-items) #exportBtn { display: none; }
   background-image: radial-gradient(circle at 50% 50%, #16130f 0, var(--stage) 70%); }
 #view { display: block; transform-origin: 50% 50%; will-change: transform; box-shadow: 0 10px 40px #0008; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .stage.picking #view { cursor: crosshair; }
-.stage.picking::after { content: "Trykk i bildet"; position: absolute; top: 12px; right: 12px; font: 11px var(--mono); color: var(--accent); background: #000a; padding: 3px 8px; border-radius: 99px; }
+.stage.picking::after { content: "Tap the image"; position: absolute; top: 12px; right: 12px; font: 11px var(--mono); color: var(--accent); background: #000a; padding: 3px 8px; border-radius: 99px; }
 .chips { position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; pointer-events: none; }
 .chip { font-size: 11px; font-family: var(--mono); padding: 3px 8px; border-radius: 99px; background: #000a; border: 1px solid var(--line); letter-spacing: .04em; }
 .chip.o { color: var(--ovr); border-color: #24525c; }
@@ -73,7 +73,7 @@ body:not(.has-items) #exportBtn { display: none; }
 .navbtn { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 40px; height: 64px; border: 0; border-radius: 10px; background: #0009; color: var(--fg); font-size: 30px; line-height: 1; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .navbtn:active { background: #000c; color: var(--accent); }
 .navbtn.prev { left: 8px; } .navbtn.next { right: 8px; }
-.stage.zoomed .chips::after { content: "Dobbelttrykk for å tilbakestille"; font: 11px var(--mono); color: var(--muted); align-self: center; }
+.stage.zoomed .chips::after { content: "Double-tap to reset"; font: 11px var(--mono); color: var(--muted); align-self: center; }
 .stagemsg { position: absolute; margin: 0; padding: 16px; max-width: 420px; text-align: center; color: var(--muted); }
 .stagebar { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; gap: 8px; align-items: center; }
 .tc { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }

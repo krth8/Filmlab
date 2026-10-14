@@ -29,7 +29,7 @@ function select(id: string, opts: [string, string][], value: string, onchange: (
 
 export function openExport() {
   const items = S.items.filter((i) => i.status === 'ready');
-  if (!items.length) { toast('Ingenting å eksportere ennå'); return; }
+  if (!items.length) { toast('Nothing to export yet'); return; }
   scrim.hidden = false;
   form();
 }
@@ -45,17 +45,17 @@ function form() {
     const trimmed = nv.filter(isTrimmed);
     const overrides = items.filter((i) => Object.keys(i.override).length).length;
     summary.replaceChildren(
-      h('b', {}, `${items.length - nv.length} bilder`), ' og ', h('b', {}, `${nv.length} videoer`), ` med look «${FMAP[S.G.filter.id]?.name ?? 'Ingen'}».`, h('br'),
-      `${overrides} har egen justering · ${trimmed.length} videoer er trimmet` + (nv.length ? ` (${fmtT(nv.reduce((a, x) => a + x.duration, 0), 0)} → ${fmtT(nv.reduce((a, x) => a + (x.trim ? x.trim.out - x.trim.in : x.duration), 0), 0)})` : '') + '.', h('br'),
-      'Eksempel: ', h('code', {}, outName(items[0], es)),
+      h('b', {}, `${items.length - nv.length} photo${items.length - nv.length === 1 ? '' : 's'}`), ' and ', h('b', {}, `${nv.length} video${nv.length === 1 ? '' : 's'}`), ` with the look “${FMAP[S.G.filter.id]?.name ?? 'None'}”.`, h('br'),
+      `${overrides} with own adjustments · ${trimmed.length} trimmed` + (nv.length ? ` (${fmtT(nv.reduce((a, x) => a + x.duration, 0), 0)} → ${fmtT(nv.reduce((a, x) => a + (x.trim ? x.trim.out - x.trim.in : x.duration), 0), 0)})` : '') + '.', h('br'),
+      'Example: ', h('code', {}, outName(items[0], es)),
       ...(nv.length && es.vQuality === 'custom'
-        ? [h('br'), `Video ≈ ${Math.round((nv.reduce((a, x) => a + (x.trim ? x.trim.out - x.trim.in : x.duration), 0) * es.vBitrate) / 8)} MB totalt.`]
+        ? [h('br'), `Video ≈ ${Math.round((nv.reduce((a, x) => a + (x.trim ? x.trim.out - x.trim.in : x.duration), 0) * es.vBitrate) / 8)} MB in total.`]
         : []),
     );
-    go.textContent = `Eksporter ${items.length} ${items.length === 1 ? 'fil' : 'filer'}`;
+    go.textContent = `Export ${items.length} ${items.length === 1 ? 'file' : 'files'}`;
   };
 
-  const destPath = h('code', {}, outDir ? outDir.name : 'Ingen mappe valgt');
+  const destPath = h('code', {}, outDir ? outDir.name : 'No folder chosen');
   const dest = canPickDir
     ? h('div', { class: 'dest' }, destPath, h('button', { class: 'btn small', onclick: async () => {
         try {
@@ -63,8 +63,8 @@ function form() {
           destPath.textContent = outDir!.name;
           destPath.classList.remove('warn');
         } catch { /* cancelled */ }
-      } }, 'Velg mappe…'))
-    : h('p', { class: 'hint' }, 'Filene lages på enheten. Etterpå lagrer du dem med Del-knappen, for eksempel «Arkiver i Bilder» eller «Arkiver i Filer».');
+      } }, 'Choose folder…'))
+    : h('p', { class: 'hint' }, 'The files are made on this device. Afterwards you save them with the Share button, for example to Photos or Files.');
 
   const q = h('input', { type: 'range', id: 'exQ', min: 50, max: 100, value: es.quality }) as HTMLInputElement;
   const qv = h('b', { class: 'mono' }, String(es.quality));
@@ -74,19 +74,19 @@ function form() {
   name.oninput = () => { es.name = name.value; upd(); };
 
   sheet.replaceChildren(
-    h('h2', {}, 'Eksporter'),
-    h('div', { class: 'field' }, h('span', {}, 'Lagre til'), dest),
+    h('h2', {}, 'Export'),
+    h('div', { class: 'field' }, h('span', {}, 'Save to'), dest),
     h('div', { class: 'two' },
-      field('Bildeformat', select('exFmt', [['jpeg', 'JPEG'], ['webp', 'WebP'], ['png', 'PNG']], es.format, (v) => { es.format = v as ImgFormat; upd(); })),
-      h('div', { class: 'field' }, h('span', {}, 'Bildekvalitet ', qv), q)),
-    field('Bilder: lang side (px)', select('exSize', [['0', 'Original'], ['4096', '4096'], ['2048', '2048'], ['1080', '1080']], String(es.size), (v) => { es.size = +v; upd(); })),
-    field('Filnavn ({navn} = originalnavnet)', name),
+      field('Photo format', select('exFmt', [['jpeg', 'JPEG'], ['webp', 'WebP'], ['png', 'PNG']], es.format, (v) => { es.format = v as ImgFormat; upd(); })),
+      h('div', { class: 'field' }, h('span', {}, 'Photo quality ', qv), q)),
+    field('Photos: long side (px)', select('exSize', [['0', 'Original'], ['4096', '4096'], ['2048', '2048'], ['1080', '1080']], String(es.size), (v) => { es.size = +v; upd(); })),
+    field('File name ({name} = original name)', name),
     advanced(upd, nv.length > 0),
     summary,
-    h('div', { class: 'actions' }, h('button', { class: 'btn ghost', onclick: close }, 'Avbryt'), go),
+    h('div', { class: 'actions' }, h('button', { class: 'btn ghost', onclick: close }, 'Cancel'), go),
   );
   go.onclick = () => {
-    if (canPickDir && !outDir) { destPath.textContent = 'Velg en mappe først'; destPath.classList.add('warn'); return; }
+    if (canPickDir && !outDir) { destPath.textContent = 'Choose a folder first'; destPath.classList.add('warn'); return; }
     run(outDir ? folderDest(outDir) : null);
   };
   upd();
@@ -102,21 +102,21 @@ function advanced(upd: () => void, hasVideo: boolean) {
   const rateRow = h('div', { class: 'field' }, h('span', {}, 'Bitrate ', rv), rate);
   rateRow.hidden = es.vQuality !== 'custom';
   const box = h('div', { class: 'adv' },
-    !hasVideo && h('p', { class: 'hint' }, 'Innstillingene gjelder video. Det er ingen videoer i denne eksporten.'),
+    !hasVideo && h('p', { class: 'hint' }, 'These settings apply to video. There are no videos in this export.'),
     h('div', { class: 'two' },
-      field('Videokodek', select('exVid', [['avc', 'H.264'], ['hevc', 'HEVC'], ['av1', 'AV1']], es.codec, (v) => { es.codec = v as typeof es.codec; upd(); })),
-      field('Maks oppløsning', select('exVRes', [['0', 'Original'], ['2160', '4K'], ['1080', '1080p'], ['720', '720p']], String(es.vRes), (v) => { es.vRes = +v; upd(); }))),
-    field('Videokvalitet', select('exVQ', [['medium', 'Middels'], ['high', 'Høy'], ['very_high', 'Svært høy'], ['custom', 'Egen bitrate']], es.vQuality, (v) => {
+      field('Video codec', select('exVid', [['avc', 'H.264'], ['hevc', 'HEVC'], ['av1', 'AV1']], es.codec, (v) => { es.codec = v as typeof es.codec; upd(); })),
+      field('Max resolution', select('exVRes', [['0', 'Original'], ['2160', '4K'], ['1080', '1080p'], ['720', '720p']], String(es.vRes), (v) => { es.vRes = +v; upd(); }))),
+    field('Video quality', select('exVQ', [['medium', 'Medium'], ['high', 'High'], ['very_high', 'Very high'], ['custom', 'Custom bitrate']], es.vQuality, (v) => {
       es.vQuality = v as typeof es.vQuality; rateRow.hidden = v !== 'custom'; upd();
     })),
     rateRow,
     h('div', { class: 'two' },
-      field('Bilder per sekund', select('exFps', [['0', 'Original'], ['24', '24'], ['30', '30'], ['60', '60']], String(es.fps), (v) => { es.fps = +v; upd(); })),
-      field('Lyd', select('exAudio', [['1', 'Med lyd'], ['0', 'Uten lyd']], es.audio ? '1' : '0', (v) => { es.audio = v === '1'; upd(); }))),
+      field('Frame rate', select('exFps', [['0', 'Original'], ['24', '24'], ['30', '30'], ['60', '60']], String(es.fps), (v) => { es.fps = +v; upd(); })),
+      field('Audio', select('exAudio', [['1', 'With audio'], ['0', 'No audio']], es.audio ? '1' : '0', (v) => { es.audio = v === '1'; upd(); }))),
   );
   box.hidden = !advOpen;
-  const toggle = h('button', { class: 'disclose' + (advOpen ? ' open' : '') }, advOpen ? 'Skjul avansert' : 'Avansert (video)') as HTMLButtonElement;
-  toggle.onclick = () => { advOpen = !advOpen; box.hidden = !advOpen; toggle.textContent = advOpen ? 'Skjul avansert' : 'Avansert (video)'; };
+  const toggle = h('button', { class: 'disclose' + (advOpen ? ' open' : '') }, advOpen ? 'Hide advanced' : 'Advanced (video)') as HTMLButtonElement;
+  toggle.onclick = () => { advOpen = !advOpen; box.hidden = !advOpen; toggle.textContent = advOpen ? 'Hide advanced' : 'Advanced (video)'; };
   return h('div', { class: 'field' }, toggle, box);
 }
 
@@ -127,13 +127,13 @@ async function run(folder: Dest | null) {
   ctrl = new AbortController();
   trimPreviews(curItem());
   const bar = h('i');
-  const label = h('p', { class: 'hint' }, 'Starter…');
+  const label = h('p', { class: 'hint' }, 'Starting…');
   sheet.replaceChildren(
-    h('h2', {}, 'Eksporterer'),
+    h('h2', {}, 'Exporting'),
     h('div', { class: 'prog' }, bar),
     label,
-    h('p', { class: 'hint' }, 'Hold appen åpen til eksporten er ferdig.'),
-    h('div', { class: 'actions' }, h('button', { class: 'btn ghost', onclick: () => ctrl?.abort() }, 'Avbryt')),
+    h('p', { class: 'hint' }, 'Keep the app open until the export is done.'),
+    h('div', { class: 'actions' }, h('button', { class: 'btn ghost', onclick: () => ctrl?.abort() }, 'Cancel')),
   );
   let lock: WakeLockSentinel | null = null;
   try { lock = await navigator.wakeLock?.request('screen'); } catch { /* not available */ }
@@ -144,11 +144,11 @@ async function run(folder: Dest | null) {
       params: paramsFor, lut: lutById,
       onProgress: (i, f) => {
         bar.style.width = (((i + f) / items.length) * 100).toFixed(1) + '%';
-        label.textContent = `${i + 1} av ${items.length} · ${items[i].name}${items[i].kind === 'video' ? ` · ${Math.round(f * 100)} %` : ''}`;
+        label.textContent = `${i + 1} of ${items.length} · ${items[i].name}${items[i].kind === 'video' ? ` · ${Math.round(f * 100)} %` : ''}`;
       },
     });
   } catch (e) {
-    res = { done: 0, failed: [{ name: 'Eksport', reason: (e as Error).message }], notes: [] };
+    res = { done: 0, failed: [{ name: 'Export', reason: (e as Error).message }], notes: [] };
   }
   lock?.release().catch(() => {});
   const aborted = ctrl.signal.aborted;
@@ -161,15 +161,15 @@ function done(res: ExportResult, aborted: boolean, folder: Dest | null, files: F
   const list = h('div', { class: 'results' });
   for (const f of res.failed) list.append(h('p', { class: 'fail' }, `${f.name}: ${f.reason}`));
   for (const n of res.notes) list.append(h('p', { class: 'hint' }, n));
-  const title = aborted ? 'Eksport avbrutt' : res.failed.length ? 'Ferdig, med feil' : 'Ferdig';
-  const text = folder ? `${res.done} ${res.done === 1 ? 'fil' : 'filer'} lagret i «${folder.label}».` : `${res.done} ${res.done === 1 ? 'fil er' : 'filer er'} klare.`;
-  actions.append(h('button', { class: 'btn ghost', onclick: close }, 'Lukk'));
+  const title = aborted ? 'Export cancelled' : res.failed.length ? 'Done, with errors' : 'Done';
+  const text = folder ? `${res.done} ${res.done === 1 ? 'file' : 'files'} saved to “${folder.label}”.` : `${res.done} ${res.done === 1 ? 'file is' : 'files are'} ready.`;
+  actions.append(h('button', { class: 'btn ghost', onclick: close }, 'Close'));
   if (!folder && files.length) {
     const share = async (batch: File[]) => {
-      try { await navigator.share({ files: batch }); } catch (e) { if ((e as Error).name !== 'AbortError') toast('Deling feilet – prøv Last ned'); }
+      try { await navigator.share({ files: batch }); } catch (e) { if ((e as Error).name !== 'AbortError') toast('Sharing failed. Try Download.'); }
     };
-    if (navigator.canShare?.({ files })) actions.append(h('button', { class: 'btn primary', onclick: () => share(files) }, 'Lagre / del'));
-    actions.append(h('button', { class: 'btn' + (navigator.canShare?.({ files }) ? '' : ' primary'), onclick: () => download(files) }, 'Last ned'));
+    if (navigator.canShare?.({ files })) actions.append(h('button', { class: 'btn primary', onclick: () => share(files) }, 'Save / share'));
+    actions.append(h('button', { class: 'btn' + (navigator.canShare?.({ files }) ? '' : ' primary'), onclick: () => download(files) }, 'Download'));
   }
   sheet.replaceChildren(h('h2', {}, title), h('p', {}, text), list, actions);
 }

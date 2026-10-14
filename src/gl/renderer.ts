@@ -32,15 +32,16 @@ export class Renderer {
   private lutSize = 2;
   private dummy: WebGLTexture;
   private A: Target | null = null;
-  private B1: Target | null = null;
-  private B2: Target | null = null;
+  private A2: Target | null = null;
+  private D: Target | null = null;
+  private tmp: Record<string, Target | null> = {};
   private down: Target[] = [];
   private up: Target[] = [];
   private hdr: boolean;
 
   constructor(readonly canvas: HTMLCanvasElement, preserve = false) {
     const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, premultipliedAlpha: false, preserveDrawingBuffer: preserve });
-    if (!gl) throw new Error('Nettleseren mangler WebGL2');
+    if (!gl) throw new Error('This browser does not support WebGL2');
     this.gl = gl;
     this.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
     this.hdr = !!gl.getExtension('EXT_color_buffer_float');
@@ -54,7 +55,7 @@ export class Renderer {
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 
-    for (const [k, fs] of Object.entries({ grade: S.FS_GRADE, bright: S.FS_BRIGHT, down: S.FS_DOWN, up: S.FS_UP, gauss: S.FS_GAUSS, finish: S.FS_FINISH, copy: S.FS_COPY })) {
+    for (const [k, fs] of Object.entries({ minch: S.FS_MINCH, local: S.FS_LOCAL, grade: S.FS_GRADE, bright: S.FS_BRIGHT, down: S.FS_DOWN, up: S.FS_UP, gauss: S.FS_GAUSS, finish: S.FS_FINISH, copy: S.FS_COPY })) {
       this.progs[k] = this.program(fs);
     }
     this.own = this.tex2d();
@@ -229,32 +230,38 @@ export class Renderer {
       gl.uniform1fv(this.loc(pr, 'u_bandH'), BAND_H);
     }
     this.draw(this.A, W, H, pr);
+    let base = this.A;
 
-    // 2. blur
-    const blurOn = P.blur > 0;
-    if (blurOn) {
-      // The 13-tap kernel has sigma ≈ 2.5 taps. Large radii read from a smaller mip level; small radii
-      // shrink the tap spacing below one pixel, so the blur stays the same fraction of the image at
-      // any render size (preview, zoomed preview, full-size export).
-      const sigma = (P.blur / 100) * W * 0.012;
-      const step = sigma / 2.5, f = Math.max(1, step), lod = Math.log2(f);
-      const bw = Math.max(1, Math.ceil(W / f)), bh = Math.max(1, Math.ceil(H / f));
-      this.B1 = this.target(this.B1, bw, bh);
-      this.B2 = this.target(this.B2, bw, bh);
-      gl.bindTexture(gl.TEXTURE_2D, this.A.tex);
-      if (lod > 0) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); }
-      pr = this.use('gauss');
-      this.bind(0, this.A.tex, pr, 'u_src');
-      this.f(pr, 'u_lod', lod);
-      this.f(pr, 'u_dir', step / W, 0);
-      this.draw(this.B1, bw, bh, pr);
-      this.bind(0, this.B1.tex, pr, 'u_src');
-      this.f(pr, 'u_lod', 0);
-      this.f(pr, 'u_dir', 0, step / f / bh);
-      this.draw(this.B2, bw, bh, pr);
-      gl.bindTexture(gl.TEXTURE_2D, this.A.tex);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    // 2. presence: dehaze, clarity, texture
+    if (P.dehaze || P.clarity || P.texture) {
+      const long = Math.max(W, H);
+      let dark = this.dummy, cla = this.dummy, tex = this.dummy;
+      if (P.dehaze) {
+        this.D = this.target(this.D, W, H);
+        pr = this.use('minch');
+        this.bind(0, base.tex, pr, 'u_src');
+        this.draw(this.D, W, H, pr);
+        dark = this.gaussian(this.D, long * 0.02, 'dark').tex;
+      }
+      if (P.clarity) cla = this.gaussian(base, long * 0.015, 'cla').tex;
+      if (P.texture) tex = this.gaussian(base, long * 0.0025, 'tex').tex;
+      this.A2 = this.target(this.A2, W, H);
+      pr = this.use('local');
+      this.bind(0, base.tex, pr, 'u_a');
+      this.bind(1, dark, pr, 'u_dark');
+      this.bind(2, cla, pr, 'u_cla');
+      this.bind(3, tex, pr, 'u_tex');
+      this.f(pr, 'u_dehaze', P.dehaze / 100);
+      this.f(pr, 'u_clarity', P.clarity / 100);
+      this.f(pr, 'u_texture', P.texture / 100);
+      this.draw(this.A2, W, H, pr);
+      base = this.A2;
     }
+
+    // 3. blur
+    const blurOn = P.blur > 0;
+    let blurTex = this.dummy;
+    if (blurOn) blurTex = this.gaussian(base, (P.blur / 100) * W * 0.012, 'blur').tex;
 
     // 3. multi-step bloom: bright pass, dual-filter down chain, weighted up chain
     const glowOn = P.bloom > 0 || P.halation > 0;
@@ -268,7 +275,7 @@ export class Renderer {
         w = Math.max(1, Math.ceil(w / 2)); h = Math.max(1, Math.ceil(h / 2));
       }
       pr = this.use('bright');
-      this.bind(0, this.A.tex, pr, 'u_src');
+      this.bind(0, base.tex, pr, 'u_src');
       this.f(pr, 'u_thr', P.bloomThr / 100);
       this.draw(this.down[0], this.down[0].w, this.down[0].h, pr);
       pr = this.use('down');
@@ -296,8 +303,8 @@ export class Renderer {
 
     // 4. finish to canvas
     pr = this.use('finish');
-    this.bind(0, this.A.tex, pr, 'u_a');
-    this.bind(1, blurOn && this.B2 ? this.B2.tex : this.dummy, pr, 'u_blur');
+    this.bind(0, base.tex, pr, 'u_a');
+    this.bind(1, blurTex, pr, 'u_blur');
     this.bind(2, bloomTex, pr, 'u_bloom');
     this.bind(3, halTex, pr, 'u_hal');
     this.i(pr, 'u_blurOn', blurOn ? 1 : 0);
@@ -314,6 +321,31 @@ export class Renderer {
     this.f(pr, 'u_seed', (opts.seed ?? 0) % 997);
     this.f(pr, 'u_aspect', W / H);
     this.draw(null, W, H, pr, 1);
+  }
+
+  /** Separable gaussian of `src` with the given sigma in pixels. The 13-tap kernel has sigma ≈ 2.5 taps:
+   *  large radii read from a smaller mip level, small radii shrink the tap spacing below one pixel, so a
+   *  blur defined as a fraction of the image looks the same at any render size. */
+  private gaussian(src: Target, sigma: number, key: string): Target {
+    const gl = this.gl, W = src.w, H = src.h;
+    const step = Math.max(1e-3, sigma / 2.5), f = Math.max(1, step), lod = Math.log2(f);
+    const bw = Math.max(1, Math.ceil(W / f)), bh = Math.max(1, Math.ceil(H / f));
+    const t1 = (this.tmp[key + '1'] = this.target(this.tmp[key + '1'] ?? null, bw, bh));
+    const t2 = (this.tmp[key + '2'] = this.target(this.tmp[key + '2'] ?? null, bw, bh));
+    gl.bindTexture(gl.TEXTURE_2D, src.tex);
+    if (lod > 0) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); }
+    const pr = this.use('gauss');
+    this.bind(0, src.tex, pr, 'u_src');
+    this.f(pr, 'u_lod', lod);
+    this.f(pr, 'u_dir', step / W, 0);
+    this.draw(t1, bw, bh, pr);
+    this.bind(0, t1.tex, pr, 'u_src');
+    this.f(pr, 'u_lod', 0);
+    this.f(pr, 'u_dir', 0, step / f / bh);
+    this.draw(t2, bw, bh, pr);
+    gl.bindTexture(gl.TEXTURE_2D, src.tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    return t2;
   }
 
   private updateCurve(P: Params) {

@@ -36,7 +36,7 @@ async function loadAll(items: Item[]) {
   await Promise.all([worker(), worker(), worker()]);
   emit('items');
   updateTop();
-  keepFiles(items, () => toast('Ikke nok lagringsplass til å huske alle filene til neste gang'));
+  keepFiles(items, () => toast('Not enough storage to remember all files for next time'));
 }
 
 async function addFiles(p: Picked) {
@@ -48,7 +48,7 @@ async function addFiles(p: Picked) {
     known.add(key);
     fresh.push(makeItem(key, f.name, kind, f));
   }
-  if (!fresh.length) { toast('Fant ingen nye bilder eller videoer'); return; }
+  if (!fresh.length) { toast('No new photos or videos found'); return; }
   const first = !S.items.length;
   S.items.push(...fresh);
   if (first) { S.folderName = p.name; S.importDir = p.dir; S.cur = 0; }
@@ -57,10 +57,10 @@ async function addFiles(p: Picked) {
   buildReel();
   select(first ? 0 : S.items.length - fresh.length);
   saveSession();
-  toast(`La til ${fresh.length} ${fresh.length === 1 ? 'fil' : 'filer'}`);
+  toast(`Added ${fresh.length} ${fresh.length === 1 ? 'file' : 'files'}`);
   await loadAll(fresh);
   const bad = fresh.filter((i) => i.status === 'error').length;
-  if (bad) toast(`${bad} ${bad === 1 ? 'fil' : 'filer'} kunne ikke leses`);
+  if (bad) toast(`${bad} ${bad === 1 ? 'file' : 'files'} could not be read`);
 }
 
 /** Rebuilds the previous session: same files, same selection, same tool. */
@@ -68,7 +68,7 @@ async function resume(sess: Session) {
   const files = await reopen(sess);
   const items = files.map((x) => {
     const it = makeItem(x.key, x.name, x.kind, x.file ?? new File([], x.name));
-    if (!x.file) { it.status = 'error'; it.error = 'Filen finnes ikke lenger. Åpne den på nytt.'; }
+    if (!x.file) { it.status = 'error'; it.error = 'The file no longer exists. Open it again.'; }
     return it;
   });
   S.items = items;
@@ -87,7 +87,7 @@ async function resume(sess: Session) {
 function updateTop() {
   const nv = S.items.filter((i) => i.kind === 'video').length;
   $('#folderName').textContent = S.folderName;
-  $('#folderMeta').textContent = S.items.length ? `${S.items.length} elementer · ${nv} videoer` : '';
+  $('#folderMeta').textContent = S.items.length ? `${S.items.length} items · ${nv} videos` : '';
   $('#empty').hidden = S.items.length > 0;
   document.body.classList.toggle('has-items', S.items.length > 0);
 }
@@ -119,9 +119,9 @@ function clearAll() {
 const menu = $('#openMenu');
 function showMenu(anchor: HTMLElement) {
   menu.replaceChildren();
-  if (canPickDir || canFolderInput) menu.append(h('button', { onclick: () => { hideMenu(); openFolder(); } }, 'Åpne mappe…'));
-  menu.append(h('button', { onclick: () => { hideMenu(); openFiles(); } }, 'Velg bilder og videoer…'));
-  if (S.items.length) menu.append(h('button', { class: 'danger', onclick: () => { hideMenu(); clearAll(); } }, 'Lukk alle'));
+  if (canPickDir || canFolderInput) menu.append(h('button', { onclick: () => { hideMenu(); openFolder(); } }, 'Open folder…'));
+  menu.append(h('button', { onclick: () => { hideMenu(); openFiles(); } }, 'Choose photos and videos…'));
+  if (S.items.length) menu.append(h('button', { class: 'danger', onclick: () => { hideMenu(); clearAll(); } }, 'Close all'));
   const r = anchor.getBoundingClientRect();
   menu.style.top = r.bottom + 6 + 'px';
   menu.style.right = Math.max(16, innerWidth - r.right) + 'px';
@@ -171,7 +171,7 @@ if (sess?.items?.length) {
   else {
     // Folder access has to be re-granted with a tap; offer to continue where the user left off.
     const btn = $<HTMLButtonElement>('#resumeBtn');
-    btn.textContent = `Fortsett der du slapp (${sess.items.length} filer)`;
+    btn.textContent = `Continue where you left off (${sess.items.length} files)`;
     btn.hidden = false;
     $('#emptyFolder').classList.remove('primary');
     btn.onclick = async () => { btn.hidden = true; await unlock(locked); await resume(sess); };

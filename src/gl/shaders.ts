@@ -211,3 +211,47 @@ void main(){
 export const FS_COPY = COMMON + `
 uniform sampler2D u_src;
 void main(){ o = vec4(texture(u_src, v_uv).rgb, 1.0); }`;
+
+/** Darkest colour channel, the input for the dehaze haze estimate ("dark channel"). */
+export const FS_MINCH = COMMON + `
+uniform sampler2D u_src;
+void main(){ vec3 c = texture(u_src, v_uv).rgb; o = vec4(vec3(min(c.r, min(c.g, c.b))), 1.0); }`;
+
+/** Presence: dehaze, clarity (large-radius midtone contrast) and texture (fine detail). Each works on
+ *  a blurred copy of the image whose radius is a fixed fraction of the image, so the result does not
+ *  depend on render size. */
+export const FS_LOCAL = COMMON + `
+uniform sampler2D u_a, u_dark, u_cla, u_tex;
+uniform float u_dehaze, u_clarity, u_texture;
+void main(){
+  vec3 c = texture(u_a, v_uv).rgb;
+  if (u_dehaze != 0.0) {
+    const float A = 0.94;                                   // atmospheric light (haze colour)
+    // Blend the blurred dark channel with the pixel's own, so the estimate follows edges (fewer halos).
+    float dark = mix(texture(u_dark, v_uv).r, min(c.r, min(c.g, c.b)), 0.5);
+    if (u_dehaze > 0.0) {
+      float t = max(1.0 - 0.6 * u_dehaze * dark / A, 0.3);   // transmission
+      vec3 j = (c - A) / t + A;
+      c = j + (luma(c) - luma(j)) * 0.35 * u_dehaze;         // keep some of the original brightness
+    } else {
+      c = mix(c, vec3(A * 0.92), -u_dehaze * 0.55 * (0.35 + 0.65 * (1.0 - dark)));
+    }
+    c = clamp(c, 0.0, 1.0);
+  }
+  if (u_clarity != 0.0) {
+    float L = luma(c), Lb = luma(texture(u_cla, v_uv).rgb);
+    if (u_clarity > 0.0) {
+      float m = clamp(1.0 - pow(2.0 * L - 1.0, 2.0), 0.0, 1.0);          // strongest in the midtones
+      float d = clamp(L - Lb, -0.12, 0.12);                               // limit halos on hard edges
+      c += u_clarity * 1.4 * d * (0.25 + 0.75 * m);
+    } else {
+      c = mix(c, c + (Lb - L), -u_clarity * 0.6);                        // soften local contrast
+    }
+  }
+  if (u_texture != 0.0) {
+    vec3 b = texture(u_tex, v_uv).rgb;
+    if (u_texture > 0.0) c += u_texture * 1.6 * clamp(luma(c) - luma(b), -0.12, 0.12);
+    else c = mix(c, b, -u_texture * 0.75);                                // smooth fine detail (e.g. skin)
+  }
+  o = vec4(clamp(c, 0.0, 1.0), 1.0);
+}`;
