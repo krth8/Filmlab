@@ -1,6 +1,6 @@
 import { Renderer } from '../gl/renderer';
 import { loadPreview } from '../media';
-import { S, curItem, emit, lutById, on, outDims, paramsFor, remember, select, setV } from '../state';
+import { S, changed, curItem, curMask, emit, lutById, on, outDims, paramsFor, remember, select, setV } from '../state';
 import { corrAt } from '../stab';
 import { geometry } from '../geo';
 import { $, fmtT, h, toast } from './dom';
@@ -56,6 +56,7 @@ function paint() {
   const P = paramsFor(it);
   const corr = it.kind === 'video' && video && P.stabilize > 0 ? corrAt(it, video.currentTime, P.stabilize) : null;
   placeGrid();
+  placeMaskOverlay();
   R.render(P, w, hh, { bypass: S.showBefore, lut: lutById(P.lut.id), seed: it.kind === 'video' && video && !video.paused ? ++seed : it.id, masks: it.masks, corr });
 }
 
@@ -260,7 +261,7 @@ function zoomAt(nz: number, cx: number, cy: number) {
   const two = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }; };
 
   stage.addEventListener('pointerdown', async (e) => {
-    if ((e.target as Element).closest('button, .empty')) return;
+    if ((e.target as Element).closest('button, .empty, .mh')) return;
     const it = curItem();
     if (!it || it.status !== 'ready') return;
     if (picker) {
@@ -357,6 +358,70 @@ function placeGrid() {
   grid.style.transform = view.style.transform;
 }
 on('ui', draw);
+
+/* ---------- mask handles ---------- */
+const ov = $<SVGSVGElement>('#maskOverlay');
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag: string, attrs: Record<string, string | number>) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  return e;
+}
+function placeMaskOverlay() {
+  const m = curMask();
+  const show = !!m && !view.hidden && !S.showBefore;
+  ov.toggleAttribute('hidden', !show);
+  if (!show || !m) return;
+  const W = view.offsetWidth, H = view.offsetHeight;
+  Object.assign(ov.style, { left: view.offsetLeft + 'px', top: view.offsetTop + 'px', width: W + 'px', height: H + 'px', transform: view.style.transform });
+  ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  ov.replaceChildren();
+  const r = 10 / z, sw = 1.5 / z;
+  const handle = (x: number, y: number, id: string) => ov.append(el('circle', { cx: x, cy: y, r, class: 'mh', 'data-h': id, 'stroke-width': sw * 1.5 }));
+  const ax = m.a[0] * W, ay = m.a[1] * H, bx = m.b[0] * W, by = m.b[1] * H;
+  if (m.type === 'linear') {
+    const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1, nx = (-dy / L) * (W + H), ny = (dx / L) * (W + H);
+    ov.append(el('line', { x1: ax - nx, y1: ay - ny, x2: ax + nx, y2: ay + ny, class: 'mline', 'stroke-width': sw }));
+    ov.append(el('line', { x1: bx - nx, y1: by - ny, x2: bx + nx, y2: by + ny, class: 'mline dim', 'stroke-width': sw }));
+    ov.append(el('line', { x1: ax, y1: ay, x2: bx, y2: by, class: 'mline dash', 'stroke-width': sw }));
+    handle(ax, ay, 'a'); handle(bx, by, 'b'); handle((ax + bx) / 2, (ay + by) / 2, 'mid');
+  } else {
+    ov.append(el('ellipse', { cx: ax, cy: ay, rx: Math.abs(bx), ry: Math.abs(by), class: 'mline', 'stroke-width': sw }));
+    ov.append(el('ellipse', { cx: ax, cy: ay, rx: Math.abs(bx) * (1 - m.feather / 100), ry: Math.abs(by) * (1 - m.feather / 100), class: 'mline dim', 'stroke-width': sw }));
+    handle(ax, ay, 'a'); handle(ax + bx, ay, 'rx'); handle(ax, ay + by, 'ry');
+  }
+}
+{
+  let drag: string | null = null, last: [number, number] = [0, 0];
+  const uv = (e: PointerEvent): [number, number] => {
+    const r = view.getBoundingClientRect();
+    return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+  };
+  ov.addEventListener('pointerdown', (e) => {
+    const t = (e.target as Element).closest('.mh');
+    if (!t) return;
+    e.stopPropagation();
+    drag = t.getAttribute('data-h');
+    last = uv(e);
+    ov.setPointerCapture(e.pointerId);
+  });
+  ov.addEventListener('pointermove', (e) => {
+    const m = curMask(), it = curItem();
+    if (!drag || !m || !it) return;
+    const [u, v] = uv(e), du = u - last[0], dv = v - last[1];
+    last = [u, v];
+    if (drag === 'a') m.a = m.type === 'linear' ? [u, v] : [m.a[0] + du, m.a[1] + dv];
+    else if (drag === 'b') m.b = [u, v];
+    else if (drag === 'mid') { m.a = [m.a[0] + du, m.a[1] + dv]; m.b = [m.b[0] + du, m.b[1] + dv]; }
+    else if (drag === 'rx') m.b = [Math.max(0.02, Math.abs(u - m.a[0])), m.b[1]];
+    else if (drag === 'ry') m.b = [m.b[0], Math.max(0.02, Math.abs(v - m.a[1]))];
+    remember(it);
+    changed();
+  });
+  const end = () => { drag = null; };
+  ov.addEventListener('pointerup', end);
+  ov.addEventListener('pointercancel', end);
+}
 
 /* ---------- previous / next ---------- */
 const prevBtn = $<HTMLButtonElement>('#prevBtn'), nextBtn = $<HTMLButtonElement>('#nextBtn');

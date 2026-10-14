@@ -69,6 +69,19 @@ body:not(.has-items) #exportBtn { display: none; }
   background:
     linear-gradient(90deg, transparent calc(33.333% - .5px), #fff6 calc(33.333% - .5px) calc(33.333% + .5px), transparent calc(33.333% + .5px) calc(66.666% - .5px), #fff6 calc(66.666% - .5px) calc(66.666% + .5px), transparent calc(66.666% + .5px)),
     linear-gradient(180deg, transparent calc(33.333% - .5px), #fff6 calc(33.333% - .5px) calc(33.333% + .5px), transparent calc(33.333% + .5px) calc(66.666% - .5px), #fff6 calc(66.666% - .5px) calc(66.666% + .5px), transparent calc(66.666% + .5px)); }
+.maskov { position: absolute; transform-origin: 50% 50%; z-index: 2; pointer-events: none; overflow: visible; }
+.maskov .mline { fill: none; stroke: #fff; opacity: .85; }
+.maskov .mline.dim { opacity: .45; }
+.maskov .mline.dash { stroke-dasharray: 4 4; }
+.maskov .mh { fill: #fff; stroke: #000a; pointer-events: all; cursor: grab; touch-action: none; }
+.maskbar { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.mchip { flex: none; border: 1px solid var(--line); background: var(--raise); border-radius: 99px; padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--fg); }
+.mchip.on { border-color: var(--ovr); color: var(--ovr); }
+.mchip.muted { opacity: .5; }
+.mchip.add { color: var(--muted); background: none; }
+.masksbtn.on { border-color: var(--ovr); color: var(--ovr); }
+.tabs button.off, .toolbar button.off { opacity: .3; pointer-events: none; }
+.btn.danger { color: var(--warn); border-color: var(--warn); }
 .chips { position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; pointer-events: none; }
 .chip { font-size: 11px; font-family: var(--mono); padding: 3px 8px; border-radius: 99px; background: #000a; border: 1px solid var(--line); letter-spacing: .04em; }
 .chip.o { color: var(--ovr); border-color: #24525c; }

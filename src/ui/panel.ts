@@ -2,10 +2,10 @@ import { curveLUT } from '../curves';
 import { parseCube } from '../cube';
 import { BANDS, FILTERS, FMAP, FSLIDERS, HSL_PRESETS } from '../looks';
 import { applyPresetTo } from '../presets';
-import { DEF, LABELS, LIN, NUM, clamp, clone, wbNeutral, type Key, type Params, type Pt } from '../model';
+import { DEF, LABELS, LIN, NUM, clamp, clone, wbNeutral, type Key, type Mask, type Params, type Pt } from '../model';
 import { videoStrip } from '../media';
 import {
-  S, changed, curItem, emit, getV, lutById, on, overrideCount, paramsFor, remember, resetKey, saveLooks, saveLuts, setV, type Tab,
+  S, changed, curItem, curMask, emit, getV, lutById, maskKey, on, outDims, overrideCount, paramsFor, remember, resetKey, saveLooks, saveLuts, setV, type Tab,
 } from '../state';
 import { $, fmtT, h, isPhone, toast } from './dom';
 import { refresh, renderThumb } from './reel';
@@ -24,7 +24,12 @@ function syncChrome() {
     if (b.dataset.tab === 'trim') b.hidden = !hasVideo;
     const inToolbar = !!b.closest('#toolbar');
     b.classList.toggle('on', b.dataset.tab === S.tab && (!inToolbar || S.sheetOpen));
+    // While a mask is selected only the tools that work locally are available.
+    const off = !!curMask() && !MASK_TABS.includes(b.dataset.tab as Tab);
+    b.classList.toggle('off', off);
+    b.disabled = off;
   });
+  maskBar();
   $('#sheetTitle').textContent = TITLES[S.tab];
   document.querySelectorAll<HTMLButtonElement>('.seg button').forEach((b) => b.classList.toggle('on', b.dataset.scope === S.scope));
   $('#scopeItem').textContent = it ? 'Only ' + it.name.replace(/\.[^.]+$/, '') : 'This item only';
@@ -48,6 +53,13 @@ function scopeNote() {
     note.append(h('span', {}, `Applies to all ${S.items.length}${n ? ` · ${n} with own adjustments` : ''}`));
   } else {
     note.append(h('span', { class: 'ovr-txt' }, own.length ? own.map((k) => LABELS[k]).join(', ') : 'No own adjustments yet'));
+  }
+  if (S.scope === 'item') {
+    note.append(h('button', { class: 'btn small masksbtn' + (S.masksOpen ? ' on' : ''), onclick: () => {
+      S.masksOpen = !S.masksOpen;
+      if (!S.masksOpen) S.maskId = null;
+      build();
+    } }, 'Masks' + (it.masks.length ? ` (${it.masks.length})` : '')));
   }
   note.append(h('span', { class: 'resets' },
     h('button', { class: 'btn small ghost', disabled: !own.length, title: 'Remove this item\'s own adjustments', onclick: () => {
@@ -129,6 +141,8 @@ function slider(parent: HTMLElement, o: SliderOpts) {
   const row = h('div', { class: 'row' }, label, out, rst, inp);
   // Changed from its reset value? In "this item" scope that means the item has its own value.
   const dirty = () => {
+    const mk = curMask();
+    if (mk && maskKey(o.key) && !o.get) return o.key in mk.adj;
     if (o.get) return Math.abs(o.get() - (o.def ?? 0)) > 1e-9;
     if (S.scope === 'item') return o.key in (curItem()?.override ?? {});
     return JSON.stringify(S.G[o.key]) !== JSON.stringify(DEF[o.key]);
@@ -139,6 +153,7 @@ function slider(parent: HTMLElement, o: SliderOpts) {
   };
   rst.onclick = reset;
   const note = () => {
+    if (curMask()) { row.classList.remove('ovr'); row.querySelector('small')?.remove(); rst.classList.toggle('on', dirty()); return; }
     const ov = curItem()?.override ?? {};
     const own = S.scope === 'item' && o.key in ov;
     row.classList.toggle('ovr', own);
@@ -348,11 +363,12 @@ function pLight() {
     ['exposure', 'Exposure', -3, 3, 0.05, ' EV'], ['contrast', 'Contrast', -100, 100], ['highlights', 'Highlights', -100, 100],
     ['shadows', 'Shadows', -100, 100], ['whites', 'Whites', -100, 100], ['blacks', 'Blacks', -100, 100], ['fade', 'Fade', 0, 100],
   ];
-  for (const [key, label, min, max, step, unit] of defs) slider(s, { key, label, min, max, step, unit });
+  for (const [key, label, min, max, step, unit] of defs) if (!curMask() || maskKey(key)) slider(s, { key, label, min, max, step, unit });
   const d = sec('Presence');
   slider(d, { key: 'texture', label: 'Texture', min: -100, max: 100 });
   slider(d, { key: 'clarity', label: 'Clarity', min: -100, max: 100 });
   slider(d, { key: 'dehaze', label: 'Dehaze', min: -100, max: 100 });
+  if (curMask()) return;
   const b = sec('Even out the series');
   hint(b, 'Measures the brightness of every item and gives the outliers their own exposure, so the series looks even.');
   b.append(h('button', { class: 'btn small', onclick: autoMatch }, 'Auto-match exposure'));
@@ -397,10 +413,11 @@ function pColor() {
   const s = sec('White balance');
   slider(s, { key: 'temp', label: 'Temperature', min: -100, max: 100 });
   slider(s, { key: 'tint', label: 'Tint', min: -100, max: 100 });
-  s.append(h('button', { class: 'btn small', onclick: () => { pick(neutralize); toast('Tap something that should be grey or white'); if (isPhone()) { S.sheetOpen = false; syncChrome(); } } }, 'Eyedropper: tap something neutral'));
+  if (!curMask()) s.append(h('button', { class: 'btn small', onclick: () => { pick(neutralize); toast('Tap something that should be grey or white'); if (isPhone()) { S.sheetOpen = false; syncChrome(); } } }, 'Eyedropper: tap something neutral'));
   const m = sec('Saturation');
   slider(m, { key: 'saturation', label: 'Saturation', min: -100, max: 100 });
   slider(m, { key: 'vibrance', label: 'Vibrance', min: -100, max: 100 });
+  if (curMask()) return;
 
   const s2 = sec('Selective color', '8 bands');
   const hv = getV('hsl');
@@ -543,6 +560,59 @@ function pFx() {
   slider(ha, { key: 'halation', label: 'Amount', min: 0, max: 100 });
 }
 
+/* ---------- Masks ---------- */
+const MASK_TABS: Tab[] = ['light', 'color'];
+
+function newMask(type: Mask['type']): Mask {
+  const it = curItem()!;
+  const [w, hh] = outDims(it);
+  const n = it.masks.length + 1;
+  return type === 'linear'
+    ? { id: 'm' + Date.now().toString(36), name: `Gradient ${n}`, type, on: true, invert: false, amount: 100, feather: 50, a: [0.5, 0.12], b: [0.5, 0.55], adj: {} }
+    : { id: 'm' + Date.now().toString(36), name: `Radial ${n}`, type, on: true, invert: false, amount: 100, feather: 50, a: [0.5, 0.5], b: [0.28, (0.28 * w) / hh], adj: {} };
+}
+
+/** Anchored above the tools while masks are open: Base (the item itself), each mask, and add buttons. */
+function maskBar() {
+  const bar = $('#maskbar');
+  const it = curItem();
+  bar.hidden = !(it && S.scope === 'item' && S.masksOpen);
+  if (bar.hidden || !it) return;
+  bar.replaceChildren();
+  const chip = (label: string, on: boolean, click: () => void, extra = '') => h('button', { class: 'mchip' + (on ? ' on' : '') + extra, onclick: click }, label);
+  bar.append(chip('Base', !S.maskId, () => { S.maskId = null; build(); }));
+  for (const m of it.masks) bar.append(chip(m.name, S.maskId === m.id, () => { S.maskId = m.id; build(); }, m.on ? '' : ' muted'));
+  const add = (type: Mask['type'], label: string) => h('button', { class: 'mchip add', onclick: () => {
+    const m = newMask(type);
+    it.masks.push(m);
+    S.maskId = m.id;
+    remember(it); changed(); build();
+  } }, label);
+  bar.append(add('linear', '+ Gradient'), add('radial', '+ Radial'));
+}
+
+let delArmed = 0;
+function pMask(m: Mask) {
+  const it = curItem()!;
+  const s = sec(m.name, m.type === 'linear' ? 'drag the handles on the image' : 'drag the centre and edges');
+  const upd = () => { remember(it); changed(); };
+  slider(s, { key: 'exposure', label: 'Amount', min: 0, max: 100, def: 100, get: () => m.amount, set: (v) => { m.amount = v; upd(); } });
+  if (m.type === 'radial') slider(s, { key: 'exposure', label: 'Feather', min: 0, max: 100, def: 50, get: () => m.feather, set: (v) => { m.feather = v; upd(); } });
+  const del = h('button', { class: 'btn small ghost' }, 'Delete') as HTMLButtonElement;
+  del.onclick = () => {
+    if (!delArmed) { del.classList.add('danger'); del.textContent = 'Tap again'; delArmed = window.setTimeout(() => { delArmed = 0; del.classList.remove('danger'); del.textContent = 'Delete'; }, 3000); return; }
+    clearTimeout(delArmed); delArmed = 0;
+    it.masks = it.masks.filter((x) => x !== m);
+    S.maskId = null;
+    upd(); build();
+  };
+  s.append(h('div', { class: 'btnrow' },
+    h('button', { class: 'btn small' + (m.invert ? ' primary' : ''), onclick: () => { m.invert = !m.invert; upd(); build(); } }, 'Invert'),
+    h('button', { class: 'btn small', onclick: () => { m.on = !m.on; upd(); build(); } }, m.on ? 'Hide' : 'Show'),
+    del));
+  hint(s, 'The Light and Color tools below now change only this mask.');
+}
+
 /* ---------- Crop ---------- */
 const ASPECTS: [string, number][] = [['Original', 0], ['1:1', 1], ['4:5', 4 / 5], ['3:4', 3 / 4], ['2:3', 2 / 3], ['9:16', 9 / 16], ['16:9', 16 / 9], ['3:2', 3 / 2], ['4:3', 4 / 3], ['5:4', 5 / 4]];
 function pCrop() {
@@ -634,7 +704,9 @@ on('trim', () => layoutPlayhead());
 export function build() {
   const it = curItem();
   if (S.tab === 'trim' && (!it || it.kind !== 'video')) S.tab = 'looks';
+  if (curMask() && !MASK_TABS.includes(S.tab)) S.tab = 'light';
   body.replaceChildren();
+  if (it && curMask()) pMask(curMask()!);
   if (it) ({ looks: pLooks, light: pLight, color: pColor, curves: pCurves, fx: pFx, crop: pCrop, trim: pTrim })[S.tab]();
   else body.append(h('p', { class: 'hint' }, 'Open photos or videos to begin.'));
   syncChrome();

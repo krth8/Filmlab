@@ -1,4 +1,4 @@
-import { DEF, NUM, clone, effective, type Item, type Key, type Override, type Params } from './model';
+import { DEF, MASK_KEYS, NUM, clone, effective, type Item, type Key, type Mask, type Override, type Params } from './model';
 import { geometry } from './geo';
 import type { CubeLut } from './cube';
 import { DEFAULT_EXPORT, type ExportSettings } from './exporter';
@@ -22,6 +22,9 @@ export const S = {
   importDir: null as FileSystemDirectoryHandle | null,
   showBefore: false,
   sheetOpen: false,
+  /** Masks UI: whether the mask bar is open, and which mask the tools edit (null = the item itself). */
+  masksOpen: false,
+  maskId: null as string | null,
 };
 
 /* ---------- events ---------- */
@@ -35,14 +38,27 @@ export const curItem = (): Item | undefined => S.items[S.cur];
 export const paramsFor = (it: Item): Params => effective(S.G, it.override);
 
 /** Value shown in the panel: the global value in "all" scope, the item's effective value otherwise. */
+/** The mask the tools are editing, if any. */
+export function curMask(): Mask | null {
+  const it = curItem();
+  return S.scope === 'item' && S.masksOpen && S.maskId && it ? it.masks.find((m) => m.id === S.maskId) ?? null : null;
+}
+export const maskKey = (k: Key) => MASK_KEYS.includes(k);
+
 export function getV<K extends Key>(k: K): Params[K] {
   const it = curItem();
+  const m = curMask();
+  if (m && maskKey(k)) return (m.adj[k] ?? 0) as Params[K];
   return S.scope === 'item' && it ? paramsFor(it)[k] : S.G[k];
 }
 
 export function setV<K extends Key>(k: K, v: Params[K]) {
   const it = curItem();
-  if (S.scope === 'item' && it) {
+  const m = curMask();
+  if (m && it && maskKey(k)) {
+    if (v) m.adj[k] = v as number; else delete m.adj[k];
+    remember(it);
+  } else if (S.scope === 'item' && it) {
     if (NUM[k]) {
       const d = +((v as number) - (S.G[k] as number)).toFixed(3);
       if (d) it.override[k] = d; else delete it.override[k];
@@ -54,7 +70,9 @@ export function setV<K extends Key>(k: K, v: Params[K]) {
 
 export function resetKey(k: Key) {
   const it = curItem();
-  if (S.scope === 'item' && it) { delete it.override[k]; remember(it); } else S.G[k] = clone(DEF[k]) as never;
+  const m = curMask();
+  if (m && it && maskKey(k)) { delete m.adj[k]; remember(it); }
+  else if (S.scope === 'item' && it) { delete it.override[k]; remember(it); } else S.G[k] = clone(DEF[k]) as never;
   changed();
 }
 
@@ -79,6 +97,7 @@ export function select(i: number) {
   const it = curItem()!;
   if (it.kind !== 'video' && S.tab === 'trim') S.tab = 'looks';
   S.showBefore = false;
+  S.maskId = null;
   emit('select');
 }
 

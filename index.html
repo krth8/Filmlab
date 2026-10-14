@@ -30,6 +30,7 @@
   <main class="stage" id="stage">
     <canvas id="view" aria-label="Preview. Hold for the original, pinch to zoom, swipe to browse." hidden></canvas>
     <div class="cropgrid" id="cropGrid" hidden></div>
+    <svg class="maskov" id="maskOverlay" hidden></svg>
     <div class="chips" id="chips"></div>
     <button class="navbtn prev" id="prevBtn" aria-label="Previous" hidden>‹</button>
     <button class="navbtn next" id="nextBtn" aria-label="Next" hidden>›</button>
@@ -75,6 +76,7 @@
       </div>
       <div class="scopenote" id="scopeNote"></div>
     </div>
+    <div class="maskbar" id="maskbar" hidden></div>
     <nav class="tabs" id="tabs">
       <button data-tab="looks" class="on">Looks</button>
       <button data-tab="light">Light</button>
