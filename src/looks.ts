@@ -1,4 +1,3 @@
-import { LIN, type Curves } from './model';
 
 export interface FilterVals { warm: number; con: number; fade: number; sat: number; split: number; sh: number; hh: number }
 export interface FilterDef { id: string; name: string; g?: string; mono?: boolean; v?: FilterVals }
@@ -54,20 +53,6 @@ export const FSLIDERS: [keyof FilterVals, string, number, number][] = [
   ['warm', 'Warmth', -100, 100], ['con', 'Contrast', -100, 100], ['fade', 'Fade', 0, 100], ['sat', 'Saturation', -100, 100],
   ['split', 'Split-toning', 0, 100], ['sh', 'Shadow hue', 0, 360], ['hh', 'Highlight hue', 0, 360],
 ];
-
-export const CURVES: Record<string, Curves> = {
-  'Linear': { rgb: LIN, r: LIN, g: LIN, b: LIN },
-  'Soft S': { rgb: [[0, 0], [0.25, 0.21], [0.75, 0.8], [1, 1]], r: LIN, g: LIN, b: LIN },
-  'Strong S': { rgb: [[0, 0], [0.25, 0.15], [0.75, 0.87], [1, 1]], r: LIN, g: LIN, b: LIN },
-  'Matte (lifted blacks)': { rgb: [[0, 0.1], [0.3, 0.3], [0.8, 0.82], [1, 0.96]], r: LIN, g: LIN, b: LIN },
-  'Film toe & shoulder': { rgb: [[0, 0.04], [0.12, 0.08], [0.5, 0.52], [0.88, 0.93], [1, 0.97]], r: LIN, g: LIN, b: LIN },
-  'Cross process': { rgb: LIN, r: [[0, 0], [0.3, 0.22], [0.7, 0.82], [1, 1]], g: [[0, 0], [0.3, 0.25], [0.7, 0.78], [1, 1]], b: [[0, 0.12], [0.5, 0.5], [1, 0.86]] },
-  'Warm': { rgb: [[0, 0], [0.5, 0.52], [1, 1]], r: [[0, 0], [0.5, 0.56], [1, 1]], g: LIN, b: [[0, 0], [0.5, 0.44], [1, 0.95]] },
-  'Cool': { rgb: LIN, r: [[0, 0], [0.5, 0.45], [1, 0.96]], g: LIN, b: [[0, 0.03], [0.5, 0.56], [1, 1]] },
-  'Teal shadows': { rgb: [[0, 0], [0.25, 0.2], [0.75, 0.8], [1, 1]], r: [[0, 0], [0.3, 0.24], [1, 1]], g: [[0, 0.02], [0.3, 0.31], [1, 1]], b: [[0, 0.06], [0.3, 0.36], [0.8, 0.78], [1, 0.94]] },
-  'High key': { rgb: [[0, 0.06], [0.4, 0.55], [1, 1]], r: LIN, g: LIN, b: LIN },
-  'Low key': { rgb: [[0, 0], [0.6, 0.45], [1, 0.92]], r: LIN, g: LIN, b: LIN },
-};
 
 export const BANDS = [
   { n: 'Red', h: 0 }, { n: 'Orange', h: 30 }, { n: 'Yellow', h: 58 }, { n: 'Green', h: 115 },

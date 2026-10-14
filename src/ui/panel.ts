@@ -1,6 +1,6 @@
 import { curveLUT } from '../curves';
 import { parseCube } from '../cube';
-import { BANDS, CURVES, FILTERS, FMAP, FSLIDERS, HSL_PRESETS } from '../looks';
+import { BANDS, FILTERS, FMAP, FSLIDERS, HSL_PRESETS } from '../looks';
 import { applyPresetTo } from '../presets';
 import { DEF, LABELS, LIN, NUM, clamp, clone, wbNeutral, type Key, type Params, type Pt } from '../model';
 import { videoStrip } from '../media';
@@ -436,9 +436,6 @@ const CH_COL = { rgb: '#ece5d9', r: '#ff6a5a', g: '#6fd27c', b: '#6aa6ff' };
 
 function pCurves() {
   const s = sec('RGB curves');
-  const cur = JSON.stringify(getV('curves'));
-  const match = Object.keys(CURVES).find((n) => JSON.stringify(CURVES[n]) === cur) ?? '';
-  s.append(cycler(Object.keys(CURVES).map((n) => ({ id: n, name: n })), match, (n) => { setV('curves', clone(CURVES[n])); build(); }, 'Custom curve'));
   const ch = h('div', { class: 'chans' });
   for (const c of ['rgb', 'r', 'g', 'b'] as const) {
     ch.append(h('button', { 'data-c': c, class: c === curveCh ? 'on' : '', onclick: (e: Event) => {

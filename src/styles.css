@@ -16,7 +16,7 @@
   --ovr: #6cc4d8;
   --warn: #e8664a;
   --ui: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --mono: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;   /* numbers and small labels */
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -28,6 +28,8 @@ button, select, input { font: inherit; color: inherit; }
 button { cursor: pointer; touch-action: manipulation; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mono, code { font-family: var(--mono); }
+/* Tabular figures keep values from jittering while a slider moves. */
+.mono, code, .tc, .row output, .chip, .frame .vid, .tcrow b, .cyc-mid small, .sec h3 em, .folder span { font-variant-numeric: tabular-nums; }
 
 .app {
   height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto minmax(0, 1fr) auto;
