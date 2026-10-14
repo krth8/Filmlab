@@ -43,9 +43,10 @@
       </div>
       <p class="hint">Du kan også dra filer eller en mappe hit.</p>
     </div>
+    <button class="iconbtn reopen" id="sheetOpen" aria-label="Vis panelet" hidden><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
     <div class="stagebar" id="stagebar" hidden>
-      <button class="btn small" id="playBtn">▶ Spill</button>
-      <button class="btn small ghost" id="muteBtn">Lyd av</button>
+      <button class="iconbtn round" id="playBtn" aria-label="Spill av"></button>
+      <button class="iconbtn round" id="muteBtn" aria-label="Slå på lyd"></button>
       <span class="tc" id="stageTc"></span>
     </div>
   </main>
@@ -64,7 +65,7 @@
   </nav>
 
   <aside class="panel" id="panel">
-    <div class="sheethead" id="sheethead"><b id="sheetTitle">Looks</b><button class="btn small" id="sheetDone">Ferdig</button></div>
+    <div class="sheethead" id="sheethead"><b id="sheetTitle">Looks</b><button class="iconbtn" id="sheetDone" aria-label="Skjul panelet"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></div>
     <div class="scope">
       <div class="seg" role="group" aria-label="Hva endringene gjelder">
         <button data-scope="all" class="on" id="scopeAll">Alle bilder</button>

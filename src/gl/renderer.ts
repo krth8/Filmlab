@@ -306,7 +306,8 @@ export class Renderer {
     // Width of the fall-off: 0 = hard edge, 100 = very gradual. 50 matches the original look.
     this.f(pr, 'u_vigW', 0.06 + ((P.vigFeather ?? 50) / 100) * 1.02);
     this.f(pr, 'u_grain', (P.grain / 100) * 0.16);
-    this.f(pr, 'u_grainSize', P.grainSize * Math.max(1, W / 1400));
+    // Grain size is defined relative to the image (a 2000 px long side is the reference).
+    this.f(pr, 'u_grainSize', (P.grainSize * Math.max(W, H)) / 2000);
     this.f(pr, 'u_seed', (opts.seed ?? 0) % 997);
     this.f(pr, 'u_aspect', W / H);
     this.draw(null, W, H, pr, 1);

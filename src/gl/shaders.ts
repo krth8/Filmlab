@@ -181,8 +181,13 @@ void main(){
     if (u_vig > 0.0) c *= 1.0 - u_vig * f; else c += (1.0 - c) * (-u_vig) * f;
   }
   if (u_grain > 0.0) {
-    vec3 cell = vec3(floor(gl_FragCoord.xy / u_grainSize), u_seed);
+    // u_grainSize is the grain cell size in output pixels, proportional to the image size. When cells are
+    // smaller than a pixel, a pixel averages several of them, so the visible amplitude drops accordingly.
+    // This keeps grain looking the same at any zoom level and export size.
+    float cellPx = max(u_grainSize, 1.0);
+    vec3 cell = vec3(floor(gl_FragCoord.xy / cellPx), u_seed);
     float n = (hash(cell) + hash(cell + vec3(17.31, 5.17, 3.1)) + hash(cell + vec3(41.7, 23.9, 7.3)) - 1.5) * 1.2;
+    n *= min(u_grainSize, 1.0);
     float lm = luma(c), w = 0.35 + (1.0 - abs(lm - 0.5) * 2.0) * 0.65;
     c += n * u_grain * w;
   }

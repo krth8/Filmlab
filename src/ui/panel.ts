@@ -1,6 +1,7 @@
 import { curveLUT } from '../curves';
 import { parseCube } from '../cube';
 import { BANDS, CURVES, FILTERS, FMAP, FSLIDERS, HSL_PRESETS } from '../looks';
+import { PRESETS, PMAP, applyPresetTo } from '../presets';
 import { DEF, LABELS, LIN, NUM, clamp, clone, type Key, type Params, type Pt } from '../model';
 import { videoStrip } from '../media';
 import {
@@ -30,6 +31,7 @@ function syncChrome() {
   $('.scope').hidden = S.tab === 'trim';
   panel.classList.toggle('scope-item', S.scope === 'item');
   panel.classList.toggle('open', S.sheetOpen);
+  $('#sheetOpen').hidden = S.sheetOpen || !it;
   app.classList.toggle('sheet-open', S.sheetOpen && isPhone());
   if (S.sheetOpen) requestAnimationFrame(() => app.style.setProperty('--sheetH', panel.offsetHeight + 'px'));
   scopeNote();
@@ -83,6 +85,7 @@ $('#toolbar').onclick = (e) => {
   openTab(b.dataset.tab as Tab);
 };
 $('#sheetDone').onclick = () => { S.sheetOpen = false; syncChrome(); };
+$('#sheetOpen').onclick = () => { S.sheetOpen = true; build(); };
 {
   let y0: number | null = null;
   const sh = $('#sheethead');
@@ -137,8 +140,36 @@ function slider(parent: HTMLElement, o: SliderOpts) {
   };
   let last = 0;
   label.onpointerup = () => { const t = Date.now(); if (t - last < 350) { resetKey(o.key); build(); } last = t; };
+  knobDrag(row, inp);
   parent.append(row);
   return row;
+}
+
+/** Only the knob grabs the slider: touching the track (e.g. while scrolling the panel) does nothing,
+ *  and dragging is relative to where the knob was, so the value never jumps to the finger. */
+const KNOB = 18;
+function knobDrag(row: HTMLElement, inp: HTMLInputElement) {
+  let x0 = 0, v0 = 0, w = 1, id = -1;
+  row.addEventListener('pointerdown', (e) => {
+    const r = inp.getBoundingClientRect();
+    if (e.clientY < r.top - 16 || e.clientY > r.bottom + 16) return;
+    const mn = +inp.min, mx = +inp.max;
+    const knobX = r.left + KNOB / 2 + ((+inp.value - mn) / (mx - mn)) * (r.width - KNOB);
+    if (Math.abs(e.clientX - knobX) > 26) return;
+    e.preventDefault();
+    row.setPointerCapture(e.pointerId);
+    id = e.pointerId; x0 = e.clientX; v0 = +inp.value; w = r.width - KNOB;
+    row.classList.add('drag');
+  });
+  row.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== id) return;
+    const mn = +inp.min, mx = +inp.max, st = +inp.step || 1;
+    const v = clamp(Math.round((v0 + ((e.clientX - x0) / w) * (mx - mn)) / st) * st, mn, mx);
+    if (v !== +inp.value) { inp.value = String(v); inp.dispatchEvent(new Event('input')); }
+  });
+  const end = (e: PointerEvent) => { if (e.pointerId === id) { id = -1; row.classList.remove('drag'); } };
+  row.addEventListener('pointerup', end);
+  row.addEventListener('pointercancel', end);
 }
 
 function sec(title: string, extra = '') {
@@ -202,16 +233,34 @@ function cycler(opts: { id: string; name: string; group?: string }[], value: str
   return el;
 }
 
+/** Scrolls a horizontal strip so the selected tile is centred, without moving the panel itself. */
+function centerOn(strip: HTMLElement) {
+  requestAnimationFrame(() => {
+    const on = strip.querySelector<HTMLElement>('.look.on')?.closest<HTMLElement>('.lookwrap, .look');
+    if (on) strip.scrollLeft = on.offsetLeft - strip.offsetLeft - (strip.clientWidth - on.clientWidth) / 2;
+  });
+}
+
 let filterDetails = false;
+let presetId = '';
 function pLooks() {
+  // Presets: complete styles
+  const ps = sec('Presets', 'hele stilen');
+  const pickPreset = (id: string) => { presetId = id; applyLook(applyPresetTo(baseParams(), PMAP[id])); toast(`«${PMAP[id].name}» brukt`); };
+  ps.append(cycler(PRESETS.map((x) => ({ id: x.id, name: x.name, group: x.g })), presetId, pickPreset, 'Velg preset'));
+  const pg = h('div', { class: 'looks strip-row' });
+  for (const x of PRESETS) pg.append(lookTile(x.name, () => applyPresetTo(baseParams(), x), x.id === presetId, () => pickPreset(x.id)));
+  ps.append(pg);
+  centerOn(pg);
+
   const f = getV('filter');
-  const s = sec('Look');
+  const s = sec('Filter');
   const pickFilter = (id: string) => { setV('filter', { id, k: 100, v: null }); build(); };
   s.append(cycler(FILTERS.map((x) => ({ id: x.id, name: x.name, group: x.g })), f.id, pickFilter));
   const g = h('div', { class: 'looks strip-row' });
   for (const x of FILTERS) g.append(lookTile(x.name, () => ({ ...baseParams(), filter: { id: x.id, k: 100, v: null } }), x.id === f.id, () => pickFilter(x.id)));
   s.append(g);
-  requestAnimationFrame(() => g.querySelector('.look.on')?.scrollIntoView({ block: 'nearest', inline: 'center' }));
+  centerOn(g);
   const fd = FMAP[f.id];
   if (fd?.v) {
     slider(s, { key: 'filter', label: 'Styrke', min: 0, max: 100, get: () => getV('filter').k, set: (v) => setV('filter', { ...getV('filter'), k: v }) });
@@ -229,13 +278,13 @@ function pLooks() {
   }
 
   // Saved looks
-  const m = sec('Mine looks', 'hele oppsettet');
+  const m = sec('Mine presets', 'lagre hele oppsettet');
   if (S.looks.length) {
     const mg = h('div', { class: 'looks strip-row' });
     for (const L of S.looks) mg.append(lookTile(L.name, () => L.params, false, () => { applyLook(clone(L.params)); toast(`«${L.name}» brukt`); }, () => { S.looks = S.looks.filter((x) => x !== L); saveLooks(); build(); }));
     m.append(mg);
   }
-  const name = h('input', { type: 'text', id: 'lookName', placeholder: 'Navn på look', maxlength: 40 }) as HTMLInputElement;
+  const name = h('input', { type: 'text', id: 'lookName', placeholder: 'Navn på preset', maxlength: 40 }) as HTMLInputElement;
   const save = () => {
     const n = name.value.trim() || `Look ${S.looks.length + 1}`;
     S.looks.push({ id: Date.now().toString(36), name: n, params: clone(baseParams()) });

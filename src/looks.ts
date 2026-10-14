@@ -24,7 +24,30 @@ export const FILTERS: FilterDef[] = [
   { g: 'Kreativ', id: 'ir', name: 'Infrarød', v: { warm: -20, con: 20, fade: 6, sat: -30, split: 60, sh: 320, hh: 175 } },
   { g: 'Kreativ', id: 'lofi', name: 'Lo-fi', v: { warm: 10, con: 45, fade: 0, sat: 40, split: 20, sh: 260, hh: 55 } },
   { g: 'Kreativ', id: 'nordlys', name: 'Nordlys', v: { warm: -25, con: 8, fade: 8, sat: 20, split: 40, sh: 160, hh: 140 } },
+  { g: 'Film', id: 'portra160', name: 'Portra 160', v: { warm: 10, con: -14, fade: 10, sat: -12, split: 14, sh: 200, hh: 30 } },
+  { g: 'Film', id: 'portra800', name: 'Portra 800', v: { warm: 20, con: -4, fade: 14, sat: 0, split: 22, sh: 190, hh: 32 } },
+  { g: 'Film', id: 'superia', name: 'Superia 400', v: { warm: -6, con: 10, fade: 6, sat: 10, split: 26, sh: 150, hh: 50 } },
+  { g: 'Film', id: 'ektachrome', name: 'Ektachrome E100', v: { warm: -10, con: 22, fade: 0, sat: 25, split: 18, sh: 215, hh: 200 } },
+  { g: 'Film', id: 'provia', name: 'Provia 100F', v: { warm: -2, con: 16, fade: 0, sat: 18, split: 6, sh: 210, hh: 40 } },
+  { g: 'Film', id: 'agfa', name: 'Agfa Vista 200', v: { warm: 18, con: 14, fade: 6, sat: 22, split: 20, sh: 340, hh: 45 } },
+  { g: 'Film', id: 'lomo800', name: 'Lomo 800', v: { warm: 12, con: 30, fade: 4, sat: 35, split: 28, sh: 230, hh: 40 } },
+  { g: 'Film', id: 'colorplus', name: 'ColorPlus 200', v: { warm: 26, con: 4, fade: 12, sat: 6, split: 26, sh: 30, hh: 42 } },
+  { g: 'Film', id: 'acros', name: 'Acros 100', mono: true, v: { warm: 0, con: 18, fade: 2, sat: 0, split: 0, sh: 0, hh: 0 } },
+  { g: 'Film', id: 'tmax', name: 'T-Max 400', mono: true, v: { warm: 0, con: 24, fade: 0, sat: 0, split: 4, sh: 210, hh: 210 } },
+  { g: 'Film', id: 'delta3200', name: 'Delta 3200', mono: true, v: { warm: 0, con: 38, fade: 12, sat: 0, split: 6, sh: 30, hh: 30 } },
+  { g: 'Kino', id: 'vision500t', name: 'Vision3 500T', v: { warm: -18, con: 6, fade: 10, sat: -4, split: 40, sh: 195, hh: 25 } },
+  { g: 'Kino', id: 'cine50d', name: 'Cinestill 50D', v: { warm: 6, con: 8, fade: 6, sat: 10, split: 18, sh: 200, hh: 30 } },
+  { g: 'Kino', id: 'eterna', name: 'Eterna', v: { warm: -6, con: -16, fade: 16, sat: -28, split: 22, sh: 185, hh: 40 } },
+  { g: 'Kino', id: 'matrix', name: 'Grønn kode', v: { warm: -20, con: 22, fade: 4, sat: -30, split: 50, sh: 130, hh: 110 } },
+  { g: 'Kino', id: 'noir', name: 'Neo-noir', v: { warm: -30, con: 34, fade: 0, sat: -45, split: 45, sh: 215, hh: 25 } },
+  { g: 'Kreativ', id: 'chrome', name: 'Classic Chrome', v: { warm: -4, con: 14, fade: 4, sat: -30, split: 14, sh: 205, hh: 40 } },
+  { g: 'Kreativ', id: 'pastel', name: 'Pastell', v: { warm: 8, con: -30, fade: 30, sat: -10, split: 36, sh: 300, hh: 50 } },
+  { g: 'Kreativ', id: 'sepia', name: 'Sepia', mono: true, v: { warm: 0, con: 10, fade: 10, sat: 0, split: 70, sh: 25, hh: 40 } },
+  { g: 'Kreativ', id: 'cyanotype', name: 'Cyanotypi', mono: true, v: { warm: 0, con: 16, fade: 6, sat: 0, split: 85, sh: 210, hh: 195 } },
 ];
+// Keep groups together in the cycler and the preview strip.
+const GROUP_ORDER = ['', 'Film', 'Kino', 'Kreativ'];
+FILTERS.sort((a, b) => GROUP_ORDER.indexOf(a.g ?? '') - GROUP_ORDER.indexOf(b.g ?? ''));
 export const FMAP: Record<string, FilterDef> = Object.fromEntries(FILTERS.map((f) => [f.id, f]));
 
 export const FSLIDERS: [keyof FilterVals, string, number, number][] = [

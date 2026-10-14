@@ -76,6 +76,21 @@ async function ensureImage(it: Item) {
 const bar = $('#stagebar');
 const playBtn = $<HTMLButtonElement>('#playBtn');
 const muteBtn = $<HTMLButtonElement>('#muteBtn');
+const ICON = {
+  play: '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor" stroke="none"/></svg>',
+  muted: '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" stroke="none"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg>',
+  sound: '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" stroke="none"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>',
+};
+function syncButtons() {
+  const playing = !!video && !video.paused;
+  playBtn.innerHTML = playing ? ICON.pause : ICON.play;
+  playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Spill av');
+  const muted = !video || video.muted;
+  muteBtn.innerHTML = muted ? ICON.muted : ICON.sound;
+  muteBtn.setAttribute('aria-label', muted ? 'Slå på lyd' : 'Slå av lyd');
+}
+syncButtons();
 const tc = $('#stageTc');
 
 function dropVideo() {
@@ -92,22 +107,23 @@ function setupVideo(it: Item) {
   if (videoFor === it) return;
   dropVideo();
   const v = document.createElement('video');
-  v.muted = true; v.playsInline = true; v.preload = 'auto';
+  v.muted = true; v.playsInline = true; v.preload = 'auto'; v.loop = true;
   v.setAttribute('playsinline', '');
   v.src = URL.createObjectURL(it.file);
   video = v; videoFor = it;
-  muteBtn.textContent = 'Lyd av';
+  syncButtons();
   v.addEventListener('loadeddata', () => { v.currentTime = it.trim?.in ?? 0; });
   v.addEventListener('seeked', () => { draw(); updateTc(); });
-  v.addEventListener('play', () => { playBtn.textContent = '❚❚ Pause'; tick(); });
-  v.addEventListener('pause', () => { playBtn.textContent = '▶ Spill'; });
+  v.addEventListener('play', () => { syncButtons(); tick(); });
+  v.addEventListener('pause', syncButtons);
+  v.addEventListener('volumechange', syncButtons);
   v.addEventListener('error', () => { it.status = 'error'; it.error = 'Videoen kan ikke spilles av i denne nettleseren'; emit('items'); });
 }
 
 function tick() {
   if (!video || video.paused) return;
   const it = videoFor!;
-  if (it.trim && video.currentTime >= it.trim.out) video.currentTime = it.trim.in;
+  if (it.trim && (video.currentTime >= it.trim.out - 0.03 || video.currentTime < it.trim.in - 0.1)) video.currentTime = it.trim.in;
   draw();
   updateTc();
   if ('requestVideoFrameCallback' in video) video.requestVideoFrameCallback(() => tick());
@@ -138,7 +154,6 @@ playBtn.onclick = togglePlay;
 muteBtn.onclick = () => {
   if (!video) return;
   video.muted = !video.muted;
-  muteBtn.textContent = video.muted ? 'Lyd av' : 'Lyd på';
 };
 
 /* ---------- chips / errors ---------- */
