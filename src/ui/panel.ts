@@ -93,6 +93,9 @@ $('#sheetOpen').onclick = () => { S.sheetOpen = true; build(); };
   sh.onpointerup = (e) => { if (y0 != null && e.clientY - y0 > 40) { S.sheetOpen = false; syncChrome(); } y0 = null; };
 }
 new ResizeObserver(() => { if (S.sheetOpen) app.style.setProperty('--sheetH', panel.offsetHeight + 'px'); }).observe(panel);
+// The tab footer is fixed; everything else is laid out around its height.
+const toolbar = $('#toolbar');
+new ResizeObserver(() => document.documentElement.style.setProperty('--toolH', (isPhone() ? toolbar.offsetHeight : 0) + 'px')).observe(toolbar);
 document.querySelectorAll<HTMLButtonElement>('.seg button').forEach((b) => (b.onclick = () => { S.scope = b.dataset.scope as 'all' | 'item'; build(); }));
 
 /* ---------- controls ---------- */
