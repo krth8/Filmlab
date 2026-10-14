@@ -217,7 +217,8 @@ const MAX_Z = 8;
 function applyZoom() {
   const r = stage.getBoundingClientRect();
   const w = view.offsetWidth * z, hh = view.offsetHeight * z;
-  const limX = Math.max(0, (w - r.width) / 2 + 24), limY = Math.max(0, (hh - r.height) / 2 + 24);
+  // Never pan past the image edge; an image smaller than the stage stays centred.
+  const limX = Math.max(0, (w - r.width) / 2), limY = Math.max(0, (hh - r.height) / 2);
   if (z <= 1) { z = 1; tx = ty = 0; }
   tx = Math.max(-limX, Math.min(limX, tx));
   ty = Math.max(-limY, Math.min(limY, ty));
@@ -291,7 +292,7 @@ function zoomAt(nz: number, cx: number, cy: number) {
     if (pinching) {
       if (pts.size < 2) pinching = false;
       if (pts.size === 1) { const p = [...pts.values()][0]; lx = p.x; ly = p.y; }
-      if (z < 1.05) resetZoom();
+      if (z < 1.15) resetZoom();
       return;
     }
     if (pts.size) return;

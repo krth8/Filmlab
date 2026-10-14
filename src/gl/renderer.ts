@@ -1,7 +1,7 @@
 import * as S from './shaders';
 import { finalLUT } from '../curves';
 import { FMAP } from '../looks';
-import type { Params } from '../model';
+import { wbGains, type Params } from '../model';
 import type { CubeLut } from '../cube';
 
 interface Prog { p: WebGLProgram; u: Map<string, WebGLUniformLocation | null> }
@@ -188,8 +188,8 @@ export class Renderer {
     this.bind(0, src.tex, pr, 'u_src');
     this.updateCurve(P);
     this.bind(1, this.curveTex, pr, 'u_curve');
-    const ev = Math.pow(2, P.exposure), tp = P.temp / 100, tn = P.tint / 100;
-    this.f(pr, 'u_wb', ev * (1 + tp * 0.2) * (1 + tn * 0.05), ev * (1 - tn * 0.12), ev * (1 - tp * 0.2) * (1 + tn * 0.05));
+    const ev = Math.pow(2, P.exposure), [wr, wg, wb] = wbGains(P.temp, P.tint);
+    this.f(pr, 'u_wb', ev * wr, ev * wg, ev * wb);
     this.f(pr, 'u_con', 1 + P.contrast / 100);
     this.f(pr, 'u_hi', P.highlights / 100);
     this.f(pr, 'u_sh', P.shadows / 100);
@@ -233,8 +233,11 @@ export class Renderer {
     // 2. blur
     const blurOn = P.blur > 0;
     if (blurOn) {
+      // The 13-tap kernel has sigma ≈ 2.5 taps. Large radii read from a smaller mip level; small radii
+      // shrink the tap spacing below one pixel, so the blur stays the same fraction of the image at
+      // any render size (preview, zoomed preview, full-size export).
       const sigma = (P.blur / 100) * W * 0.012;
-      const f = Math.max(1, sigma / 2.5), lod = Math.log2(f);
+      const step = sigma / 2.5, f = Math.max(1, step), lod = Math.log2(f);
       const bw = Math.max(1, Math.ceil(W / f)), bh = Math.max(1, Math.ceil(H / f));
       this.B1 = this.target(this.B1, bw, bh);
       this.B2 = this.target(this.B2, bw, bh);
@@ -243,11 +246,11 @@ export class Renderer {
       pr = this.use('gauss');
       this.bind(0, this.A.tex, pr, 'u_src');
       this.f(pr, 'u_lod', lod);
-      this.f(pr, 'u_dir', f / W, 0);
+      this.f(pr, 'u_dir', step / W, 0);
       this.draw(this.B1, bw, bh, pr);
       this.bind(0, this.B1.tex, pr, 'u_src');
       this.f(pr, 'u_lod', 0);
-      this.f(pr, 'u_dir', 0, 1 / bh);
+      this.f(pr, 'u_dir', 0, step / f / bh);
       this.draw(this.B2, bw, bh, pr);
       gl.bindTexture(gl.TEXTURE_2D, this.A.tex);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);

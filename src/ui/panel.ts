@@ -2,7 +2,7 @@ import { curveLUT } from '../curves';
 import { parseCube } from '../cube';
 import { BANDS, CURVES, FILTERS, FMAP, FSLIDERS, HSL_PRESETS } from '../looks';
 import { PRESETS, PMAP, applyPresetTo } from '../presets';
-import { DEF, LABELS, LIN, NUM, clamp, clone, type Key, type Params, type Pt } from '../model';
+import { DEF, LABELS, LIN, NUM, clamp, clone, wbNeutral, type Key, type Params, type Pt } from '../model';
 import { videoStrip } from '../media';
 import {
   S, changed, curItem, emit, getV, lutById, on, overrideCount, paramsFor, remember, resetKey, saveLooks, saveLuts, setV, type Tab,
@@ -350,11 +350,9 @@ let band = 5;
 function neutralize([r, g, b]: [number, number, number]) {
   const R = Math.pow(r, 2.2), G = Math.max(1e-4, Math.pow(g, 2.2)), B = Math.pow(b, 2.2);
   if (R < 1e-4 || B < 1e-4) { toast('Velg et lysere, nøytralt område'); return; }
-  const q = B / R, a = (q - 1) / (q + 1);
-  const t = (R * (1 + a) + B * (1 - a)) / 2 / G;
-  const tn = (1 - t) / (0.12 + 0.05 * t);
-  setV('temp', Math.round(clamp((a / 0.2) * 100, -100, 100)));
-  setV('tint', Math.round(clamp(tn * 100, -100, 100)));
+  const wb = wbNeutral(R, G, B);
+  setV('temp', wb.temp);
+  setV('tint', wb.tint);
   build();
   toast('Hvitbalanse satt');
 }

@@ -79,3 +79,24 @@ export interface Item {
 }
 
 export const isTrimmed = (it: Item) => !!it.trim && (it.trim.in > 0.05 || it.trim.out < it.duration - 0.05);
+
+/* ---------- white balance ----------
+ * The sliders are -100…100 but the response is curved: fine control near the middle, and the
+ * effect grows faster towards the ends (up to about one stop of red/blue shift at ±100). */
+const WB_CURVE = 2, TEMP_STOPS = 1.1, TINT_STOPS = 0.8;
+const shape = (v: number, stops: number) => Math.sign(v) * Math.pow(Math.abs(v) / 100, WB_CURVE) * stops;
+const unshape = (k: number, stops: number) => Math.sign(k) * Math.pow(Math.min(1, Math.abs(k) / stops), 1 / WB_CURVE) * 100;
+
+/** Linear-light RGB gains for a temperature/tint setting. */
+export function wbGains(temp: number, tint: number): [number, number, number] {
+  const k = shape(temp, TEMP_STOPS), t = shape(tint, TINT_STOPS);
+  return [Math.pow(2, k + t / 2), Math.pow(2, -t), Math.pow(2, -k + t / 2)];
+}
+
+/** Temperature/tint that make a sampled (linear-light) colour neutral grey. */
+export function wbNeutral(R: number, G: number, B: number): { temp: number; tint: number } {
+  const k = 0.5 * Math.log2(B / R);
+  const A = (R * Math.pow(2, k) + B * Math.pow(2, -k)) / 2;
+  const t = -Math.log2(A / G) / 1.5;
+  return { temp: Math.round(clamp(unshape(k, TEMP_STOPS), -100, 100)), tint: Math.round(clamp(unshape(t, TINT_STOPS), -100, 100)) };
+}
